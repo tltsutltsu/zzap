@@ -1,0 +1,32 @@
+[package]
+name = "zzap"
+edition = "2021"
+version = "0.1.0"
+description = "Privacy and performance centered database for search on big data"
+authors = ["Ilia <i@134.team>"]
+homepage = "https://github.com/tltsutltsu/zzap"
+repository = "https://github.com/tltsutltsu/zzap"
+categories = ["database"]
+
+[dependencies]
+tokio = { version = "1.39.2", features = ["full"] }
+tfhe = { version = "*", features = ["boolean", "shortint", "integer"] }
+derive_more = "0.99.18"
+dashmap = { version = "6.0.1", features = ["serde", "inline", "arbitrary"] }
+async-trait = "0.1.81"
+serde = { version = "1.0.204", features = ["derive"] }
+flexbuffers = "2.0.0"
+
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+tfhe = { version = "*", features = [
+    "boolean",
+    "shortint",
+    "integer",
+    "aarch64-unix",
+] }
+
+# [target.'cfg(target_arch = "x86_64")'.dependencies]
+# tfhe = { version = "*", features = ["boolean", "shortint", "integer", "x86_64-unix"] }
+
+# [target.'cfg(target_os = "windows")'.dependencies]
+# tfhe = { version = "*", features = ["boolean", "shortint", "integer", "x86_64"] }

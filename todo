@@ -1,0 +1,16 @@
+- [ ] add config in yaml, including port, persistence (to disk as of now, then mb s3)
+- [ ] reverse index?
+- [ ] how db should be persisted? what if persistence fails? what if it takes too long? how often should it be persisted?
+- [ ] lookup for more efficient serialization formats. bincode? protobuf?
+- [ ] incremental updates instead of writing the entire storage on each change
+- [ ] recovery system?
+- [ ] add metrics (prometheus?)
+- [ ] add logging (slog? tracing?), check for all eprintln and println and replace
+- [ ] add health checks (actix-web?)
+- [ ] add rate limiting (tokio-rate-limit?)
+- [ ] add fuzzing (cargo-fuzz?)
+- [ ] add benchmarks (criterion?), more, like 5 benchmarks and load testing of common cases so we can measure performance impact of each change
+- [ ] is there any way to compare and save benchmarks of each commit? and show on graph? master will be enough, but it would be nice to see the impact of each PR
+- [ ] add more tests!! integration, units, end-to-end, fuzzing, etc. up to 500 tests and 100% coverage
+- [ ] add CI/CD (github actions?)
+- [ ] add documentation (will doc comments suffice?)
