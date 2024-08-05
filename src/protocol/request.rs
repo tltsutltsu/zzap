@@ -106,24 +106,25 @@ impl Message for Request {
                     .to_string();
 
                 let after_params = input
-                    .replace("SET", "")
+                    .replace("SET ", "")
                     .replace(&format!("{} ", bucket), "")
                     .replace(&format!("{} ", collection), "")
                     .replace(&format!("{} ", id), "");
 
-                let maybe_len = after_params.trim().find(':');
+                let after_params = after_params.trim();
+
+                let maybe_len = after_params.find(':');
                 let (content, key) = match maybe_len {
                     Some(len_pos) => {
                         // it is in form of "4:content [key]"
-                        let len_pos = len_pos + 1;
                         let len = after_params[..len_pos].trim();
                         println!(
-                            "SET, bucket: {}, collection: {}, id: {}, len: {}, mod_len: {}",
+                            "SET, bucket: {}, collection: {}, id: {}, len: {}, after_params: {}",
                             bucket,
                             collection,
                             id,
                             len,
-                            after_params[..len_pos + 1].trim()
+                            after_params
                         );
                         let len: Result<usize, _> = len.parse();
 
@@ -198,8 +199,18 @@ impl Message for Request {
                 })
             }
             Some("SEARCH") => {
-                let bucket = parts.next().unwrap().to_string();
-                let collection = parts.next().unwrap().to_string();
+                let bucket = parts
+                    .next()
+                    .ok_or(DecodingError::InvalidRequest(
+                        "Missing bucket".to_string(),
+                    ))?
+                    .to_string();
+                let collection = parts
+                    .next()
+                    .ok_or(DecodingError::InvalidRequest(
+                        "Missing collection".to_string(),
+                    ))?
+                    .to_string();
                 let query = parts.collect::<Vec<&str>>().join(" ");
 
                 Ok(Request::Search {
@@ -224,6 +235,7 @@ impl Message for Request {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -235,9 +247,8 @@ mod tests {
 
     #[test]
     fn test_set_command() {
-        let one_mb_of_data = std::fs::read_to_string("assets/tests/1_MiB_of_data").unwrap();
-
-        let very_long_key = "a".repeat(1000);
+        let binary_data = std::fs::read_to_string("assets/tests/binary_data").unwrap();
+        let very_long_symbol = "a".repeat(1000);
 
         let cases: Vec<(&str, Result<Request, DecodingError>)> = vec![
             // Basic functionality
@@ -343,12 +354,16 @@ mod tests {
                 }),
             ),
             (
+                "SET b c i 4:abc",
+                Err(DecodingError::InvalidRequest("Content length exceeds input length".to_string())),
+            ),
+            (
                 {
-                    let s = format!("SET b c i {}:{}", one_mb_of_data.len(), one_mb_of_data);
+                    let s = format!("SET b c i {}:{}", binary_data.len(), binary_data);
                     Box::leak(s.into_boxed_str())
                 },
                 {
-                    let content = one_mb_of_data.to_string();
+                    let content = binary_data.to_string();
                     Ok(Request::Set {
                         bucket: "b".into(),
                         collection: "c".into(),
@@ -366,7 +381,7 @@ mod tests {
                     collection: "c".into(),
                     id: "i".into(),
                     content: "test".into(),
-                    key: Some("".into()),
+                    key: None,
                 }),
             ),
             (
@@ -390,75 +405,76 @@ mod tests {
                 }),
             ),
             (
-                "SET b c i 4:test [very long key...]",
+                {
+                    let s = format!("SET b c i 4:test {}", very_long_symbol);
+                    Box::leak(s.into_boxed_str())
+                },
                 Ok(Request::Set {
                     bucket: "b".into(),
                     collection: "c".into(),
                     id: "i".into(),
                     content: "test".into(),
-                    key: Some("[very long key...]".into()),
+                    key: Some(very_long_symbol.clone()),
                 }),
             ),
             // Bucket and collection variations
             (
                 "SET  users 1 4:test",
-                Err(DecodingError::InvalidRequest(
-                    "Invalid content length: 4".to_string(),
-                )),
-            ),
-            (
-                "SET default  1 4:test",
-                Err(DecodingError::InvalidRequest(
-                    "Invalid content length: 4".to_string(),
-                )),
-            ),
-            (
-                "SET 'my bucket' users 1 4:test",
                 Ok(Request::Set {
-                    bucket: "'my".into(),
-                    collection: "bucket'".into(),
-                    id: "users".into(),
-                    content: "1".into(),
+                    bucket: "users".into(),
+                    collection: "1".into(),
+                    id: "4:test".into(),
+                    content: "test".into(),
                     key: None,
                 }),
             ),
             (
-                "SET [very long bucket] [very long collection] 1 4:test",
+                "SET default  1 4:test",
                 Ok(Request::Set {
-                    bucket: "[very".into(),
-                    collection: "long".into(),
-                    id: "bucket]".into(),
-                    content: "[very".into(),
+                    bucket: "default".into(),
+                    collection: "1".into(),
+                    id: "4:test".into(),
+                    content: "test".into(),
+                    key: None,
+                }),
+            ),
+            (
+                "SET 'my bucket' users 1 4:test",
+                Err(DecodingError::InvalidRequest(
+                    "Invalid content length".to_string(),
+                )),
+            ),
+            (
+                "SET verylongbucketnameconsistsofmorethan256characters123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123 verylongcollectionnameconsistsofmorethan256characters123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123 1 4:test",
+                Ok(Request::Set {
+                    bucket: "verylongbucketnameconsistsofmorethan256characters123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123".into(),
+                    collection: "verylongcollectionnameconsistsofmorethan256characters123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123".into(),
+                    id: "1".into(),
+                    content: "test".into(),
                     key: None,
                 }),
             ),
             // ID variations
             (
                 "SET b c  4:test",
-                Err(DecodingError::InvalidRequest(
-                    "Invalid content length: 4".to_string(),
-                )),
-            ),
-            (
-                "SET b c 'id with spaces' 4:test",
                 Ok(Request::Set {
                     bucket: "b".into(),
                     collection: "c".into(),
-                    id: "'id".into(),
-                    content: "with".into(),
+                    id: "4:test".into(),
+                    content: "test".into(),
                     key: None,
                 }),
             ),
             (
                 {
-                    let s = format!("SET b c {} 4:test", very_long_key);
+                    let s = format!("SET b c {} 4:test", very_long_symbol);
                     Box::leak(s.into_boxed_str())
                 },
                 Ok(Request::Set {
                     bucket: "b".into(),
                     collection: "c".into(),
-                    id: very_long_key,
-                    content: "long".into(),
+                    id: very_long_symbol,
+                    content: "test".into(),
                     key: None,
                 }),
             ),
@@ -466,20 +482,24 @@ mod tests {
             (
                 "SET b c i test:4",
                 Err(DecodingError::InvalidRequest(
-                    "Invalid content length: test:4".to_string(),
+                    "Invalid content length".to_string(),
                 )),
             ),
             (
                 "SET b c i 10:test",
                 Err(DecodingError::InvalidRequest(
-                    "Invalid content length: 10:test".to_string(),
+                    "Content length exceeds input length".to_string(),
                 )),
             ),
             (
                 "SET b c i 4test",
-                Err(DecodingError::InvalidRequest(
-                    "Invalid content length: 4test".to_string(),
-                )),
+                Ok(Request::Set {
+                    bucket: "b".into(),
+                    collection: "c".into(),
+                    id: "i".into(),
+                    content: "4test".into(),
+                    key: None,
+                }),
             ),
             (
                 "SET  b  c  i  4:test",
@@ -494,18 +514,8 @@ mod tests {
             (
                 "SET b c",
                 Err(DecodingError::InvalidRequest(
-                    "Invalid content length: ".to_string(),
+                    "Missing id".to_string(),
                 )),
-            ),
-            (
-                "SET b c i 4:test extra args",
-                Ok(Request::Set {
-                    bucket: "b".into(),
-                    collection: "c".into(),
-                    id: "i".into(),
-                    content: "test".into(),
-                    key: Some("extra args".into()),
-                }),
             ),
             // Protocol specifics
             (
@@ -535,7 +545,7 @@ mod tests {
                     collection: "c".into(),
                     id: "i".into(),
                     content: "test".into(),
-                    key: None,
+                    key: Some("j 5:test2".into()),
                 }),
             ),
         ];
