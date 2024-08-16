@@ -224,7 +224,6 @@ impl Message for Request {
                 })
             }
             Some("REMOVE") => {
-                
                 let bucket = parts
                     .next()
                     .ok_or(DecodingError::InvalidRequest("Missing bucket".to_string()))?
