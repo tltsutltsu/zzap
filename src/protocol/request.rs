@@ -118,11 +118,6 @@ impl Message for Request {
                     Some(len_pos) => {
                         // it is in form of "4:content [key]"
                         let len = after_params[..len_pos].trim();
-                        #[cfg(debug_assertions)]
-                        println!(
-                            "SET, bucket: {}, collection: {}, id: {}, len: {}, after_params: {}",
-                            bucket, collection, id, len, after_params
-                        );
                         let len: Result<usize, _> = len.parse();
 
                         if let Err(_) = len {
@@ -134,20 +129,6 @@ impl Message for Request {
 
                         let content_end = len_pos + 1 + len;
                         if content_end > after_params.len() {
-                            #[cfg(debug_assertions)]
-                            {
-                                println!("\n\n\n\n\n");
-                                println!(
-                                    "content_end: `{}`, after_params.len(): `{}`",
-                                    content_end,
-                                    after_params.len()
-                                );
-                                println!("after_params: `{}`", after_params);
-                                println!("input: `{}`", input);
-                                println!("text with max len: `{}`", &after_params[len_pos + 1..]);
-                                println!("\n\n\n\n\n");
-                            }
-
                             return Err(DecodingError::InvalidRequest(
                                 "Content length exceeds input length".to_string(),
                             ));
@@ -173,16 +154,10 @@ impl Message for Request {
                                 let key = after_params[last_whitespace..].trim();
 
                                 if content.is_empty() && !key.is_empty() {
-                                    #[cfg(debug_assertions)]
-                                    println!("content: '{}', key: '{}'", content, key);
                                     (key.to_string(), None)
                                 } else if !content.is_empty() && key.is_empty() {
-                                    #[cfg(debug_assertions)]
-                                    println!("content: '{}', key: '{}'", content, key);
                                     (content.to_string(), None)
                                 } else {
-                                    #[cfg(debug_assertions)]
-                                    println!("content: '{}', key: '{}'", content, key);
                                     (content.to_string(), Some(key.to_string()))
                                 }
                             }
@@ -1154,5 +1129,12 @@ mod tests {
                 String::from_utf8_lossy(input)
             );
         }
+    }
+
+    #[test]
+    fn test_invalid_command() {
+        let result = Request::from_bytes(b"INVALID 123");
+        assert!(result.is_err(), "Expected error for invalid command");
+        assert_eq!(result.unwrap_err(), DecodingError::InvalidRequest("Invalid command".to_string()));
     }
 }
