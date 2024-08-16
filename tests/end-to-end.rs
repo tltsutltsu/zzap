@@ -3,6 +3,27 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 
+/// Macro to send a command to the server and read the response
+/// Parameters:
+/// - `stream`: the stream to send the command to   
+/// - `command`: the command to send
+/// - `expected_response`: the expected response
+macro_rules! command {
+    ($stream:expr, $command:expr, $expected_response:expr) => {
+        send_command($stream, $command)?;
+        let resp = read_response($stream)?;
+        assert_eq!(resp, $expected_response);
+    };
+}
+
+macro_rules! command_predicate {
+    ($stream:expr, $command:expr, $predicate:expr) => {
+        send_command($stream, $command)?;
+        let resp = read_response($stream)?;
+        assert!($predicate(resp));
+    };
+}
+
 // This test requires running zzap with the default config
 #[tokio::test]
 async fn simple() -> Result<(), Box<dyn Error>> {
@@ -12,16 +33,37 @@ async fn simple() -> Result<(), Box<dyn Error>> {
     println!("Connected to server");
 
     // Test PING
-    send_command(&mut stream, "PING")?;
-    assert_eq!(read_response(&mut stream)?, "+OK\n");
+    command!(&mut stream, "PING", "+OK\n");
 
     // Set a key
-    send_command(&mut stream, "SET default test_collection test_id 7:test123")?;
-    assert_eq!(read_response(&mut stream)?, "+OK\n");
+    command!(
+        &mut stream,
+        "SET default test_collection test_id 7:test123",
+        "+OK\n"
+    );
 
     // Search for the key
-    send_command(&mut stream, "SEARCH default test_collection test")?;
-    assert_eq!(read_response(&mut stream)?, "1\ntest_id\n");
+    command!(
+        &mut stream,
+        "SEARCH default test_collection test",
+        "1\ntest_id\n"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn index_cleans_properly() -> Result<(), Box<dyn Error>> {
+    // Connect to the server
+    let mut stream = TcpStream::connect("127.0.0.1:13413")?;
+
+    println!("Connected to server");
+
+    command!(&mut stream, "SET default articles 0 test_article", "+OK\n");
+    command!(&mut stream, "SET default articles 0 other_word", "+OK\n");
+
+    command!(&mut stream, "SEARCH default articles test_article", "0\n");
+    command!(&mut stream, "SEARCH default articles other_word", "1\n0\n");
 
     Ok(())
 }
@@ -55,15 +97,17 @@ async fn lot_of_data() -> Result<(), Box<dyn Error>> {
         .collect();
     println!("all_records: {:?}", all_records.len());
     for (id, (article_name, _search_phrases)) in all_records.iter().enumerate() {
-        let command = format!(
-            "SET default articles {} {}:{}",
-            id,
-            article_name.len(),
-            article_name
+        command!(
+            &mut stream,
+            format!(
+                "SET default articles {} {}:{}",
+                id,
+                article_name.len(),
+                article_name
+            )
+            .as_str(),
+            "+OK\n"
         );
-        send_command(&mut stream, &command)?;
-        let resp = read_response(&mut stream)?;
-        assert_eq!(resp, "+OK\n");
     }
 
     // now try to search for each phrase
@@ -74,15 +118,14 @@ async fn lot_of_data() -> Result<(), Box<dyn Error>> {
     {
         for search_phrase in search_phrases {
             total += 1;
-            send_command(
-                &mut stream,
-                &format!("SEARCH default articles {}", search_phrase),
-            )?;
-            let resp = read_response(&mut stream)?;
 
-            if resp.contains(id.to_string().as_str()) {
-                found += 1;
-            }
+            command_predicate!(&mut stream, format!("SEARCH default articles {}", search_phrase).as_str(), |resp: String| {
+                if resp.contains(id.to_string().as_str()) {
+                    found += 1;
+                }
+
+                true
+            });
         }
 
         if id % 1000 == 0 {
@@ -123,15 +166,17 @@ async fn lot_of_clients() -> Result<(), Box<dyn Error>> {
                 .take(rand::thread_rng().gen_range(ARTICLE_NAME_LENGTH.0..ARTICLE_NAME_LENGTH.1))
                 .map(|c| c as char)
                 .collect();
-            let command = format!("SET default articles {} {}", article_id, article_name);
-            send_command(stream, &command)?;
-            let resp = read_response(stream)?;
-            assert_eq!(resp, "+OK\n");
 
-            let search_phrase = article_name.clone();
-            send_command(stream, &format!("SEARCH default articles {}", search_phrase))?;
-            let resp = read_response(stream)?;
-            assert_eq!(resp, format!("1\n{}\n", article_id));
+            command!(
+                stream,
+                format!("SET default articles {} {}", article_id, article_name).as_str(),
+                "+OK\n"
+            );
+            command!(
+                stream,
+                format!("SEARCH default articles {}", article_name).as_str(),
+                format!("1\n{}\n", article_id)
+            );
         }
 
         Ok(())
@@ -140,36 +185,6 @@ async fn lot_of_clients() -> Result<(), Box<dyn Error>> {
     for mut client in clients {
         run_client(&mut client)?;
     }
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn index_cleans_properly() -> Result<(), Box<dyn Error>> {
-    // Connect to the server
-    let mut stream = TcpStream::connect("127.0.0.1:13413")?;
-
-    println!("Connected to server");
-
-    let command = "SET default articles 0 test_article";
-    send_command(&mut stream, command)?;
-    let resp = read_response(&mut stream)?;
-    assert_eq!(resp, "+OK\n");
-
-    let command = "SET default articles 0 other_word";
-    send_command(&mut stream, command)?;
-    let resp = read_response(&mut stream)?;
-    assert_eq!(resp, "+OK\n");
-
-    let command = "SEARCH default articles test_article";
-    send_command(&mut stream, command)?;
-    let resp = read_response(&mut stream)?;
-    assert_eq!(resp, "0\n");
-
-    let command = "SEARCH default articles other_word";
-    send_command(&mut stream, command)?;
-    let resp = read_response(&mut stream)?;
-    assert_eq!(resp, "1\n0\n");
 
     Ok(())
 }
