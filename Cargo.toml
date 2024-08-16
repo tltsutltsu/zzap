@@ -49,3 +49,6 @@ rand = "0.8.5"
 
 # [target.'cfg(target_os = "windows")'.dependencies]
 # tfhe = { version = "*", features = ["boolean", "shortint", "integer", "x86_64"] }
+
+[features]
+"e2e-tests" = []

@@ -19,4 +19,6 @@ jobs:
           cargo run --release &
 
       - name: Run tests
-        run: cargo test --release --all-features --no-fail-fast -- --exact --show-output
+        run: |
+          cargo test --release --no-fail-fast -- --exact --show-output
+          cargo test --release --features=e2e-tests --no-fail-fast --test end-to-end -- --exact --show-output --test-threads=1
