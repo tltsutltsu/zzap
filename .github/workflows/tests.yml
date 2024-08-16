@@ -19,4 +19,4 @@ jobs:
           cargo run target &
 
       - name: Run tests
-        run: cargo test --release --all-features
+        run: cargo test --release --all-features --no-fail-fast -- --exact --show-output
