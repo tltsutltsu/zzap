@@ -3,9 +3,7 @@ mod message;
 
 use std::error::Error;
 use std::fmt;
-
 use tfhe::integer::BooleanBlock;
-
 use self::key::Key;
 use crate::encryption::message::Message;
 

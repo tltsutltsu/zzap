@@ -1,5 +1,5 @@
 mod connection;
-mod handler;
+pub mod handler;
 
 use std::net::SocketAddr;
 use std::sync::Arc;

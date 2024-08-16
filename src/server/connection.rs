@@ -9,6 +9,7 @@ use crate::storage::Storage;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::RwLock;
+use tokio::task;
 
 use super::handler::handle_request;
 
@@ -35,48 +36,66 @@ impl Connection {
     }
 
     pub async fn handle(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        // Implement connection handling logic here
-        // This would typically involve reading from the stream,
-        // parsing the request, and writing the response
-
         loop {
-            // Read stream until newline
-            let mut buffer = Vec::new();
-            let mut stream = self.stream.write().await;
-            let mut reader = tokio::io::BufReader::new(&mut *stream);
-            reader.read_until(b'\n', &mut buffer).await?;
-            drop(stream);
+            let stream_clone = self.stream.clone();
+            let storage_clone = self.storage.clone();
+            let encryption_clone = self.encryption.clone();
+            let search_engine_clone = self.search_engine.clone();
 
-            let req_str = String::from_utf8(buffer.clone())?;
-            #[cfg(debug_assertions)]
-            println!("Received request: {}", req_str);
+            let handle = task::spawn(async move {
+                let mut buffer = Vec::new();
+                let mut stream = stream_clone.write().await;
+                let mut reader = tokio::io::BufReader::new(&mut *stream);
+                if let Err(e) = reader.read_until(b'\n', &mut buffer).await {
+                    eprintln!("Error reading from stream: {}", e);
+                    return;
+                }
+                drop(stream);
 
-            let request = Request::from_bytes(&buffer);
+                let req_str = String::from_utf8_lossy(&buffer);
+                #[cfg(debug_assertions)]
+                println!("Received request: {}", req_str);
 
-            if let Err(e) = request {
-                eprintln!("Error parsing request: {}", e);
-                let response = Response::from_error(e);
-                let mut stream = self.stream.write().await;
-                stream.write_all(&response.to_bytes()).await?;
+                let request = match Request::from_bytes(&buffer) {
+                    Ok(req) => req,
+                    Err(e) => {
+                        eprintln!("Error parsing request: {}", e);
+                        let response = Response::from_decoding_error(e);
+                        let mut stream = stream_clone.write().await;
+                        if let Err(e) = stream.write_all(&response.to_bytes()).await {
+                            eprintln!("Error writing response: {}", e);
+                        }
+                        return;
+                    }
+                };
 
-                continue;
-            }
+                let response = match handle_request(
+                    request,
+                    &storage_clone,
+                    &encryption_clone,
+                    &search_engine_clone
+                ).await {
+                    Ok(resp) => resp,
+                    Err(e) => {
+                        eprintln!("Error handling request: {}", e);
+                        Response::from_handle_error(e)
+                    }
+                };
 
-            let response = handle_request(
-                request.unwrap(),
-                &self.storage,
-                &self.encryption,
-                &self.search_engine
-            ).await?;
+                #[cfg(debug_assertions)]
+                println!("Sending response: {}", String::from_utf8_lossy(&response.to_bytes()));
 
-            #[cfg(debug_assertions)]
-            println!("Sending response: {}", String::from_utf8(response.to_bytes())?);
+                let mut stream = stream_clone.write().await;
+                if let Err(e) = stream.write_all(&response.to_bytes()).await {
+                    eprintln!("Error writing response: {}", e);
+                }
+            });
 
-            let mut stream = self.stream.write().await;
-            stream.write_all(&response.to_bytes()).await?;
+            // Await the task to ensure any errors are propagated
+            handle.await?;
 
             // Break the loop if needed (e.g., client disconnects)
-            if buffer.is_empty() {
+            if self.stream.read().await.peek(&mut [0; 1]).await? == 0 {
                 break;
             }
         }

@@ -1,9 +1,10 @@
 #![warn(clippy::all)]
-
+#![feature(try_trait_v2)]
 use std::net::SocketAddr;
 
 use crate::{encryption::Encryption, storage::StorageOperations};
 
+mod error;
 mod server;
 mod protocol;
 mod storage;

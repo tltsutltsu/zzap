@@ -1,3 +1,5 @@
+use crate::server::handler::HandleError;
+
 use super::message::{DecodingError, Message};
 
 pub enum Response {
@@ -66,7 +68,11 @@ impl Message for Response {
 }
 
 impl Response {
-    pub fn from_error(error: DecodingError) -> Self {
+    pub fn from_decoding_error(error: DecodingError) -> Self {
+        Response::Error(error.to_string())
+    }
+
+    pub fn from_handle_error(error: HandleError) -> Self {
         Response::Error(error.to_string())
     }
 }
