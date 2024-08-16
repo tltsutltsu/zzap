@@ -144,6 +144,36 @@ async fn lot_of_clients() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[tokio::test]
+async fn index_cleans_properly() -> Result<(), Box<dyn Error>> {
+    // Connect to the server
+    let mut stream = TcpStream::connect("127.0.0.1:13413")?;
+
+    println!("Connected to server");
+
+    let command = "SET default articles 0 test_article";
+    send_command(&mut stream, command)?;
+    let resp = read_response(&mut stream)?;
+    assert_eq!(resp, "+OK\n");
+
+    let command = "SET default articles 0 other_word";
+    send_command(&mut stream, command)?;
+    let resp = read_response(&mut stream)?;
+    assert_eq!(resp, "+OK\n");
+
+    let command = "SEARCH default articles test_article";
+    send_command(&mut stream, command)?;
+    let resp = read_response(&mut stream)?;
+    assert_eq!(resp, "0\n");
+
+    let command = "SEARCH default articles other_word";
+    send_command(&mut stream, command)?;
+    let resp = read_response(&mut stream)?;
+    assert_eq!(resp, "1\n0\n");
+
+    Ok(())
+}
+
 fn send_command(stream: &mut TcpStream, command: &str) -> Result<(), Box<dyn Error>> {
     stream.write_all(format!("{}\n", command).as_bytes())?;
     Ok(())
