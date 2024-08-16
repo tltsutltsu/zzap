@@ -14,7 +14,26 @@ jobs:
         with:
           toolchain: nightly
 
+      - name: Cache Rust dependencies
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Cache tarpaulin
+        uses: actions/cache@v2
+        id: cache-tarpaulin
+        with:
+          path: ~/.cargo/bin/cargo-tarpaulin
+          key: ${{ runner.os }}-tarpaulin-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Install tarpaulin
+        if: steps.cache-tarpaulin.outputs.cache-hit != 'true'
         run: cargo install cargo-tarpaulin
 
       - name: Generate code coverage
