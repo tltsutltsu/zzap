@@ -1,0 +1,22 @@
+name: tests
+
+on: [push]
+env:
+  RUST_BACKTRACE: full
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+
+      - name: Spawn server in background
+        run: |
+          cargo run target &
+
+      - name: Run tests
+        run: cargo test --release --all-features
