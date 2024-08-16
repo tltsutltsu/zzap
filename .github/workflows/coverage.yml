@@ -1,20 +1,22 @@
 name: coverage
 
 on: [push]
+env:
+  RUST_BACKTRACE: full
 jobs:
-  test:
-    name: coverage
+  coverage:
     runs-on: ubuntu-latest
-    container:
-      image: xd009642/tarpaulin:develop-nightly
-      options: --security-opt seccomp=unconfined
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
 
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+
       - name: Generate code coverage
         run: |
-          cargo +nightly tarpaulin --verbose --all-features --workspace --timeout 120 --out xml
+          cargo +nightly tarpaulin --engine llvm --follow-exec --verbose --all-features --workspace --out xml --exclude-files tests/end-to-end.rs
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v2
