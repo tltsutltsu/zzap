@@ -16,7 +16,7 @@ jobs:
 
       - name: Spawn server in background
         run: |
-          cargo run target &
+          cargo run --release &
 
       - name: Run tests
         run: cargo test --release --all-features --no-fail-fast -- --exact --show-output
