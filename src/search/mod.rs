@@ -44,6 +44,9 @@ impl SearchEngine {
             .map(|s| s.to_lowercase())
             .collect();
 
+        // clear all tokens that have the same id in the collection
+        collection_index.retain(|token| !token.ends_with(&format!(":{}", id)));
+
         for token in tokens {
             collection_index.push(format!("{}:{}", token, id));
         }
