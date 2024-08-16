@@ -107,24 +107,21 @@ impl Message for Request {
 
                 let after_params = input
                     .replace("SET ", "")
-                    .replace(&format!("{} ", bucket), "")
-                    .replace(&format!("{} ", collection), "")
-                    .replace(&format!("{} ", id), "");
+                    .replacen(&format!("{} ", bucket), "", 1)
+                    .replacen(&format!("{} ", collection), "", 1)
+                    .replacen(&format!("{} ", id), "", 1);
 
-                let after_params = after_params.trim();
+                let after_params = after_params.trim_start();
 
                 let maybe_len = after_params.find(':');
                 let (content, key) = match maybe_len {
                     Some(len_pos) => {
                         // it is in form of "4:content [key]"
                         let len = after_params[..len_pos].trim();
+                        #[cfg(debug_assertions)]
                         println!(
                             "SET, bucket: {}, collection: {}, id: {}, len: {}, after_params: {}",
-                            bucket,
-                            collection,
-                            id,
-                            len,
-                            after_params
+                            bucket, collection, id, len, after_params
                         );
                         let len: Result<usize, _> = len.parse();
 
@@ -137,6 +134,20 @@ impl Message for Request {
 
                         let content_end = len_pos + 1 + len;
                         if content_end > after_params.len() {
+                            #[cfg(debug_assertions)]
+                            {
+                                println!("\n\n\n\n\n");
+                                println!(
+                                    "content_end: `{}`, after_params.len(): `{}`",
+                                    content_end,
+                                    after_params.len()
+                                );
+                                println!("after_params: `{}`", after_params);
+                                println!("input: `{}`", input);
+                                println!("text with max len: `{}`", &after_params[len_pos + 1..]);
+                                println!("\n\n\n\n\n");
+                            }
+
                             return Err(DecodingError::InvalidRequest(
                                 "Content length exceeds input length".to_string(),
                             ));
@@ -162,12 +173,15 @@ impl Message for Request {
                                 let key = after_params[last_whitespace..].trim();
 
                                 if content.is_empty() && !key.is_empty() {
+                                    #[cfg(debug_assertions)]
                                     println!("content: '{}', key: '{}'", content, key);
                                     (key.to_string(), None)
                                 } else if !content.is_empty() && key.is_empty() {
+                                    #[cfg(debug_assertions)]
                                     println!("content: '{}', key: '{}'", content, key);
                                     (content.to_string(), None)
                                 } else {
+                                    #[cfg(debug_assertions)]
                                     println!("content: '{}', key: '{}'", content, key);
                                     (content.to_string(), Some(key.to_string()))
                                 }
@@ -201,9 +215,7 @@ impl Message for Request {
             Some("SEARCH") => {
                 let bucket = parts
                     .next()
-                    .ok_or(DecodingError::InvalidRequest(
-                        "Missing bucket".to_string(),
-                    ))?
+                    .ok_or(DecodingError::InvalidRequest("Missing bucket".to_string()))?
                     .to_string();
                 let collection = parts
                     .next()

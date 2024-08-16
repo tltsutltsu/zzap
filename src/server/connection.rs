@@ -47,6 +47,10 @@ impl Connection {
             reader.read_until(b'\n', &mut buffer).await?;
             drop(stream);
 
+            let req_str = String::from_utf8(buffer.clone())?;
+            #[cfg(debug_assertions)]
+            println!("Received request: {}", req_str);
+
             let request = Request::from_bytes(&buffer);
 
             if let Err(e) = request {
@@ -64,6 +68,9 @@ impl Connection {
                 &self.encryption,
                 &self.search_engine
             ).await?;
+
+            #[cfg(debug_assertions)]
+            println!("Sending response: {}", String::from_utf8(response.to_bytes())?);
 
             let mut stream = self.stream.write().await;
             stream.write_all(&response.to_bytes()).await?;

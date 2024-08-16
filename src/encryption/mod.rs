@@ -1,9 +1,18 @@
+mod key;
+mod message;
+
 use std::error::Error;
 use std::fmt;
+
+use tfhe::integer::BooleanBlock;
+
+use self::key::Key;
+use crate::encryption::message::Message;
 
 #[derive(Debug)]
 pub enum EncryptionError {
     InvalidKey,
+    WrongKeySize,
     EncryptionFailed,
     DecryptionFailed,
 }
@@ -12,6 +21,7 @@ impl fmt::Display for EncryptionError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             EncryptionError::InvalidKey => write!(f, "Invalid encryption key"),
+            EncryptionError::WrongKeySize => write!(f, "Wrong key size"),
             EncryptionError::EncryptionFailed => write!(f, "Encryption failed"),
             EncryptionError::DecryptionFailed => write!(f, "Decryption failed"),
         }
@@ -25,6 +35,32 @@ pub trait Encryption {
     fn encrypt(&self, data: &str, key: &str) -> Result<String, EncryptionError>;
     fn decrypt(&self, data: &str, key: &str) -> Result<String, EncryptionError>;
 }
+
+pub struct TFHEEncryptor;
+
+// impl Encryption for TFHEEncryptor {
+//     fn new() -> Self {
+//         TFHEEncryptor
+//     }
+
+//     fn encrypt(&self, data: &str, key: &str) -> Result<String, EncryptionError> {
+//         let key = key.to_string().to_tfhe()?;
+
+//         let message = data.to_string().as_boolean()?;
+//         for bit in message {
+//             // let ciphertext = key.encrypt(bit);
+//             BooleanBlock::
+
+//             ciphertext
+//         }
+
+//         panic!("not implemented");
+//     }
+
+//     fn decrypt(&self, data: &str, key: &str) -> Result<String, EncryptionError> {
+//         unimplemented!()
+//     }
+// }
 
 pub struct MockEncryptor;
 
