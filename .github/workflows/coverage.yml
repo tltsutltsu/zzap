@@ -19,7 +19,7 @@ jobs:
 
       - name: Generate code coverage
         run: |
-          cargo +nightly tarpaulin --engine llvm --follow-exec --verbose --all-features --workspace --out xml --exclude-files tests/end-to-end.rs
+          cargo +nightly tarpaulin --engine llvm --follow-exec --verbose --all-features --workspace --out xml --exclude-files tests/end-to-end.rs --coveralls ${{ secrets.COVERALLS_TOKEN }}
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v2
