@@ -3,6 +3,32 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 
+fn send_command(stream: &mut TcpStream, command: &str) -> Result<(), Box<dyn Error>> {
+    stream.write_all(format!("{}\n", command).as_bytes())?;
+    Ok(())
+}
+
+fn read_response(stream: &mut TcpStream) -> Result<String, Box<dyn Error>> {
+    // read until newline
+    let mut buffer = Vec::new();
+    let mut reader = BufReader::new(&mut *stream);
+    reader.read_until(b'\n', &mut buffer)?;
+    let response = String::from_utf8(buffer)?;
+
+    // if response is number, parse it as int N and read N lines
+    if let Ok(n) = response.trim().parse::<usize>() {
+        let mut lines: Vec<String> = vec![response.clone()];
+        for _ in 0..n {
+            let mut buffer = Vec::new();
+            reader.read_until(b'\n', &mut buffer)?;
+            lines.push(String::from_utf8(buffer)?);
+        }
+        return Ok(lines.join(""));
+    }
+
+    Ok(response)
+}
+
 /// Macro to send a command to the server and read the response
 /// Parameters:
 /// - `stream`: the stream to send the command to   
@@ -119,13 +145,17 @@ async fn lot_of_data() -> Result<(), Box<dyn Error>> {
         for search_phrase in search_phrases {
             total += 1;
 
-            command_predicate!(&mut stream, format!("SEARCH default articles {}", search_phrase).as_str(), |resp: String| {
-                if resp.contains(id.to_string().as_str()) {
-                    found += 1;
-                }
+            command_predicate!(
+                &mut stream,
+                format!("SEARCH default articles {}", search_phrase).as_str(),
+                |resp: String| {
+                    if resp.contains(id.to_string().as_str()) {
+                        found += 1;
+                    }
 
-                true
-            });
+                    true
+                }
+            );
         }
 
         if id % 1000 == 0 {
@@ -187,30 +217,4 @@ async fn lot_of_clients() -> Result<(), Box<dyn Error>> {
     }
 
     Ok(())
-}
-
-fn send_command(stream: &mut TcpStream, command: &str) -> Result<(), Box<dyn Error>> {
-    stream.write_all(format!("{}\n", command).as_bytes())?;
-    Ok(())
-}
-
-fn read_response(stream: &mut TcpStream) -> Result<String, Box<dyn Error>> {
-    // read until newline
-    let mut buffer = Vec::new();
-    let mut reader = BufReader::new(&mut *stream);
-    reader.read_until(b'\n', &mut buffer)?;
-    let response = String::from_utf8(buffer)?;
-
-    // if response is number, parse it as int N and read N lines
-    if let Ok(n) = response.trim().parse::<usize>() {
-        let mut lines: Vec<String> = vec![response.clone()];
-        for _ in 0..n {
-            let mut buffer = Vec::new();
-            reader.read_until(b'\n', &mut buffer)?;
-            lines.push(String::from_utf8(buffer)?);
-        }
-        return Ok(lines.join(""));
-    }
-
-    Ok(response)
 }

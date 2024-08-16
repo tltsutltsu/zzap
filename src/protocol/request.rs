@@ -106,7 +106,7 @@ impl Message for Request {
                     .to_string();
 
                 let after_params = input
-                    .replace("SET ", "")
+                    .replacen("SET ", "", 1)
                     .replacen(&format!("{} ", bucket), "", 1)
                     .replacen(&format!("{} ", collection), "", 1)
                     .replacen(&format!("{} ", id), "", 1);
@@ -557,7 +557,7 @@ mod tests {
                     collection: "c".into(),
                     id: "i".into(),
                     content: "test".into(),
-                    key: Some("j 5:test2".into()),
+                    key: Some("SET b c j 5:test2".into()),
                 }),
             ),
         ];
