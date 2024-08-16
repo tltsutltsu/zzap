@@ -17,7 +17,6 @@ path = "src/lib.rs"
 
 [dependencies]
 tokio = { version = "1.39.2", features = ["full"] }
-tfhe = { version = "*", features = ["boolean", "shortint", "integer"] }
 derive_more = "0.99.18"
 dashmap = { version = "6.0.1", features = ["serde", "inline", "arbitrary"] }
 async-trait = "0.1.81"
@@ -36,6 +35,10 @@ tfhe = { version = "*", features = [
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 tfhe = { version = "*", features = ["boolean", "shortint", "integer", "x86_64-unix"] }
+
+# for windows and x86_64
+[target.'cfg(target_os = "windows")'.dependencies]
+tfhe = { version = "*", features = ["boolean", "shortint", "integer", "x86_64"] }
 
 [dev-dependencies]
 csv = "1.3.0"
