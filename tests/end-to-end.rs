@@ -40,13 +40,19 @@ async fn lot_of_data() -> Result<(), Box<dyn Error>> {
     // for each line, send SET command
 
     let file = File::open("assets/tests/search_synthetic_dataset.csv")?;
-    let mut reader = ReaderBuilder::new().has_headers(true).flexible(true).from_reader(file);
-    let all_records: Vec<(String, Vec<String>)> = reader.records().map(|result| {
-        let record = result.unwrap();
-        let article_name = record[0].to_string();
-        let search_phrases = record.iter().skip(1).map(|s| s.to_string()).collect();
-        (article_name, search_phrases)
-    }).collect();
+    let mut reader = ReaderBuilder::new()
+        .has_headers(true)
+        .flexible(true)
+        .from_reader(file);
+    let all_records: Vec<(String, Vec<String>)> = reader
+        .records()
+        .map(|result| {
+            let record = result.unwrap();
+            let article_name = record[0].to_string();
+            let search_phrases = record.iter().skip(1).map(|s| s.to_string()).collect();
+            (article_name, search_phrases)
+        })
+        .collect();
     println!("all_records: {:?}", all_records.len());
     for (id, (article_name, _search_phrases)) in all_records.iter().enumerate() {
         let command = format!(
@@ -63,7 +69,9 @@ async fn lot_of_data() -> Result<(), Box<dyn Error>> {
     // now try to search for each phrase
     let mut found = 0;
     let mut total = 0;
-    for (id, (_article_name, search_phrases)) in all_records.iter().enumerate().take(all_records.len()/100) {
+    for (id, (_article_name, search_phrases)) in
+        all_records.iter().enumerate().take(all_records.len() / 100)
+    {
         for search_phrase in search_phrases {
             total += 1;
             send_command(
@@ -88,8 +96,52 @@ async fn lot_of_data() -> Result<(), Box<dyn Error>> {
 }
 
 #[tokio::test]
-async fn lots_of_clients() -> Result<(), Box<dyn Error>> {
-    todo!()
+async fn lot_of_clients() -> Result<(), Box<dyn Error>> {
+    use rand::distributions::Alphanumeric;
+    use rand::Rng;
+
+    const NUM_CLIENTS: usize = 100;
+    const OPERATIONS_PER_CLIENT: usize = 1000;
+    const ARTICLE_NAME_LENGTH: (usize, usize) = (10, 40);
+
+    let mut clients = Vec::new();
+
+    for _ in 0..NUM_CLIENTS {
+        let stream = TcpStream::connect("127.0.0.1:13413")?;
+        clients.push(stream);
+    }
+
+    fn run_client(stream: &mut TcpStream) -> Result<(), Box<dyn Error>> {
+        send_command(stream, "PING")?;
+        let resp = read_response(stream)?;
+        assert_eq!(resp, "+OK\n");
+
+        for _ in 0..OPERATIONS_PER_CLIENT {
+            let article_id = rand::thread_rng().gen_range(0..1000000);
+            let article_name: String = rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(rand::thread_rng().gen_range(ARTICLE_NAME_LENGTH.0..ARTICLE_NAME_LENGTH.1))
+                .map(|c| c as char)
+                .collect();
+            let command = format!("SET default articles {} {}", article_id, article_name);
+            send_command(stream, &command)?;
+            let resp = read_response(stream)?;
+            assert_eq!(resp, "+OK\n");
+
+            let search_phrase = article_name.clone();
+            send_command(stream, &format!("SEARCH default articles {}", search_phrase))?;
+            let resp = read_response(stream)?;
+            assert_eq!(resp, format!("1\n{}\n", article_id));
+        }
+
+        Ok(())
+    }
+
+    for mut client in clients {
+        run_client(&mut client)?;
+    }
+
+    Ok(())
 }
 
 fn send_command(stream: &mut TcpStream, command: &str) -> Result<(), Box<dyn Error>> {

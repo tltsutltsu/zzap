@@ -1,9 +1,10 @@
-use std::collections::HashMap;
 use std::sync::Arc;
+use rayon::prelude::*;
 use tokio::sync::RwLock;
 use crate::storage::{Storage, StorageError};
+use dashmap::DashMap;
 
-type IndexStore = HashMap<String, HashMap<String, Vec<String>>>;
+type IndexStore = DashMap<String, DashMap<String, Vec<String>>>;
 
 pub struct SearchEngine {
     index: Arc<RwLock<IndexStore>>,
@@ -12,7 +13,7 @@ pub struct SearchEngine {
 impl SearchEngine {
     pub fn new() -> Self {
         SearchEngine {
-            index: Arc::new(RwLock::new(HashMap::new())),
+            index: Arc::new(RwLock::new(DashMap::new())),
         }
     }
     pub async fn initialize(&self, storage: &Storage) -> Result<(), StorageError> {
@@ -34,9 +35,9 @@ impl SearchEngine {
     }
 
     pub async fn index(&self, bucket: &str, collection: &str, id: &str, content: &str) -> Result<(), StorageError> {
-        let mut index = self.index.write().await;
-        let bucket_index = index.entry(bucket.to_string()).or_insert_with(HashMap::new);
-        let collection_index = bucket_index.entry(collection.to_string()).or_insert_with(Vec::new);
+        let index = self.index.write().await;
+        let bucket_index = index.entry(bucket.to_string()).or_insert_with(DashMap::new);
+        let mut collection_index = bucket_index.entry(collection.to_string()).or_insert_with(Vec::new);
 
         // Simple tokenization (split by whitespace)
         let tokens: Vec<String> = content.split_whitespace()
@@ -59,15 +60,14 @@ impl SearchEngine {
             .map(|s| s.to_lowercase())
             .collect();
 
-        let mut results: HashMap<String, usize> = HashMap::new();
-
+        let results: DashMap<String, usize> = DashMap::new();
         for token in query_tokens {
-            for indexed_token in collection_index.iter() {
+            collection_index.par_iter().for_each(|indexed_token| {
                 if indexed_token.starts_with(&token) {
                     let (_, id) = indexed_token.split_once(':').unwrap();
-                    *results.entry(id.to_string()).or_insert(0) += 1;
+                    results.entry(id.to_string()).and_modify(|count| *count += 1).or_insert(1);
                 }
-            }
+            });
         }
 
         let mut sorted_results: Vec<(String, usize)> = results.into_iter().collect();
@@ -77,9 +77,9 @@ impl SearchEngine {
     }
 
     pub async fn remove_from_index(&self, bucket: &str, collection: &str, id: &str) -> Result<(), StorageError> {
-        let mut index = self.index.write().await;
+        let index = self.index.write().await;
         let bucket_index = index.get_mut(bucket).ok_or(StorageError::BucketNotFound)?;
-        let collection_index = bucket_index.get_mut(collection).ok_or(StorageError::CollectionNotFound)?;
+        let mut collection_index = bucket_index.get_mut(collection).ok_or(StorageError::CollectionNotFound)?;
 
         collection_index.retain(|indexed_token| !indexed_token.ends_with(&format!(":{}", id)));
 
