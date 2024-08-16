@@ -52,6 +52,7 @@ macro_rules! command_predicate {
 
 // This test requires running zzap with the default config
 #[tokio::test]
+#[cfg_attr(tarpaulin, ignore)]
 async fn simple() -> Result<(), Box<dyn Error>> {
     // Connect to the server
     let mut stream = TcpStream::connect("127.0.0.1:13413")?;
@@ -79,6 +80,7 @@ async fn simple() -> Result<(), Box<dyn Error>> {
 }
 
 #[tokio::test]
+#[cfg_attr(tarpaulin, ignore)]
 async fn index_cleans_properly() -> Result<(), Box<dyn Error>> {
     // Connect to the server
     let mut stream = TcpStream::connect("127.0.0.1:13413")?;
@@ -95,6 +97,7 @@ async fn index_cleans_properly() -> Result<(), Box<dyn Error>> {
 }
 
 #[tokio::test]
+#[cfg_attr(tarpaulin, ignore)]
 async fn lot_of_data() -> Result<(), Box<dyn Error>> {
     use csv::ReaderBuilder;
 
@@ -169,6 +172,7 @@ async fn lot_of_data() -> Result<(), Box<dyn Error>> {
 }
 
 #[tokio::test]
+#[cfg_attr(tarpaulin, ignore)]
 async fn lot_of_clients() -> Result<(), Box<dyn Error>> {
     use rand::distributions::Alphanumeric;
     use rand::Rng;
