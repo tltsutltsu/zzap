@@ -6,7 +6,6 @@ use tfhe::Seed;
 
 use super::EncryptionError;
 
-
 pub trait Key {
     fn to_tfhe(&self) -> Result<ClientKey, EncryptionError>;
 }
