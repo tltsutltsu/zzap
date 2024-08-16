@@ -2,6 +2,43 @@ use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
+use std::process::{Child, Command};
+use std::time::Duration;
+
+const SERVER_PORT: u16 = 13413;
+
+struct TestNode {
+    process: Child,
+}
+
+impl TestNode {
+    const START_TIMEOUT: Duration = Duration::from_secs(1);
+
+    fn new() -> Self {
+        let build_status = std::process::Command::new("cargo")
+            .args(["build", "--release"])
+            .spawn()
+            .expect("Failed to build zzap")
+            .wait()
+            .expect("Failed to wait for build to finish");
+
+        assert!(build_status.success(), "Failed to build zzap");
+
+        let process = Command::new("./target/release/zzap")
+            .spawn()
+            .expect("Failed to start database");
+        
+        std::thread::sleep(Self::START_TIMEOUT);
+        
+        Self { process }
+    }
+}
+
+impl Drop for TestNode {
+    fn drop(&mut self) {
+        self.process.kill().expect("Failed to kill database process");
+    }
+}
 
 fn send_command(stream: &mut TcpStream, command: &str) -> Result<(), Box<dyn Error>> {
     stream.write_all(format!("{}\n", command).as_bytes())?;
@@ -53,9 +90,12 @@ macro_rules! command_predicate {
 // This test requires running zzap with the default config
 #[tokio::test]
 #[cfg_attr(tarpaulin, ignore)]
-async fn simple() -> Result<(), Box<dyn Error>> {
+#[cfg_attr(not(feature = "e2e-tests"), ignore)]
+async fn e2e_simple() -> Result<(), Box<dyn Error>> {
     // Connect to the server
-    let mut stream = TcpStream::connect("127.0.0.1:13413")?;
+    let _node = TestNode::new();
+
+    let mut stream = TcpStream::connect(format!("127.0.0.1:{}", SERVER_PORT))?;
 
     println!("Connected to server");
 
@@ -80,10 +120,13 @@ async fn simple() -> Result<(), Box<dyn Error>> {
 }
 
 #[tokio::test]
+#[cfg_attr(not(feature = "e2e-tests"), ignore)]
 #[cfg_attr(tarpaulin, ignore)]
-async fn index_cleans_properly() -> Result<(), Box<dyn Error>> {
+async fn e2e_index_cleans_properly() -> Result<(), Box<dyn Error>> {
     // Connect to the server
-    let mut stream = TcpStream::connect("127.0.0.1:13413")?;
+    let _node = TestNode::new();
+    
+    let mut stream = TcpStream::connect(format!("127.0.0.1:{}", SERVER_PORT))?;
 
     println!("Connected to server");
 
@@ -97,12 +140,15 @@ async fn index_cleans_properly() -> Result<(), Box<dyn Error>> {
 }
 
 #[tokio::test]
+#[cfg_attr(not(feature = "e2e-tests"), ignore)]
 #[cfg_attr(tarpaulin, ignore)]
-async fn lot_of_data() -> Result<(), Box<dyn Error>> {
+async fn e2e_lot_of_data() -> Result<(), Box<dyn Error>> {
     use csv::ReaderBuilder;
 
     // Connect to the server
-    let mut stream = TcpStream::connect("127.0.0.1:13413")?;
+    let _node = TestNode::new();
+
+    let mut stream = TcpStream::connect(format!("127.0.0.1:{}", SERVER_PORT))?;
 
     println!("Connected to server");
 
@@ -173,7 +219,8 @@ async fn lot_of_data() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 #[cfg_attr(tarpaulin, ignore)]
-async fn lot_of_clients() -> Result<(), Box<dyn Error>> {
+#[cfg_attr(not(feature = "e2e-tests"), ignore)]
+async fn e2e_lot_of_clients() -> Result<(), Box<dyn Error>> {
     use rand::distributions::Alphanumeric;
     use rand::Rng;
 
@@ -181,10 +228,12 @@ async fn lot_of_clients() -> Result<(), Box<dyn Error>> {
     const OPERATIONS_PER_CLIENT: usize = 1000;
     const ARTICLE_NAME_LENGTH: (usize, usize) = (10, 40);
 
+    let _node = TestNode::new();
+
     let mut clients = Vec::new();
 
     for _ in 0..NUM_CLIENTS {
-        let stream = TcpStream::connect("127.0.0.1:13413")?;
+        let stream = TcpStream::connect(format!("127.0.0.1:{}", SERVER_PORT))?;
         clients.push(stream);
     }
 
