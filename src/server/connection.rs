@@ -4,28 +4,29 @@ use crate::encryption::MockEncryptor;
 use crate::protocol::message::Message;
 use crate::protocol::request::Request;
 use crate::protocol::response::Response;
-use crate::search::SearchEngine;
+use crate::search::{SearchEngine, StdSearchEngine};
 use crate::storage::Storage;
+use std::sync::RwLock as SyncRwLock;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio::sync::RwLock;
+use tokio::sync::RwLock as AsyncRwLock;
 use tokio::task;
 
 use super::handler::handle_request;
 
 pub struct Connection {
-    stream: Arc<RwLock<TcpStream>>,
-    storage: Arc<RwLock<Storage>>,
+    stream: Arc<AsyncRwLock<TcpStream>>,
+    storage: Arc<SyncRwLock<Storage>>,
     encryption: Arc<MockEncryptor>,
-    search_engine: Arc<RwLock<SearchEngine>>,
+    search_engine: Arc<SyncRwLock<StdSearchEngine>>,
 }
 
 impl Connection {
     pub fn new(
-        stream: Arc<RwLock<TcpStream>>,
-        storage: Arc<RwLock<Storage>>,
+        stream: Arc<AsyncRwLock<TcpStream>>,
+        storage: Arc<SyncRwLock<Storage>>,
         encryption: Arc<MockEncryptor>,
-        search_engine: Arc<RwLock<SearchEngine>>,
+        search_engine: Arc<SyncRwLock<StdSearchEngine>>,
     ) -> Self {
         Self {
             stream,
@@ -42,6 +43,7 @@ impl Connection {
             let encryption_clone = self.encryption.clone();
             let search_engine_clone = self.search_engine.clone();
 
+            // TODO: double spawn?
             let handle = task::spawn(async move {
                 let mut buffer = Vec::new();
                 let mut stream = stream_clone.write().await;
@@ -73,8 +75,10 @@ impl Connection {
                     request,
                     &storage_clone,
                     &encryption_clone,
-                    &search_engine_clone
-                ).await {
+                    &search_engine_clone,
+                )
+                .await
+                {
                     Ok(resp) => resp,
                     Err(e) => {
                         eprintln!("Error handling request: {}", e);
@@ -83,7 +87,10 @@ impl Connection {
                 };
 
                 #[cfg(debug_assertions)]
-                println!("Sending response: {}", String::from_utf8_lossy(&response.to_bytes()));
+                println!(
+                    "Sending response: {}",
+                    String::from_utf8_lossy(&response.to_bytes())
+                );
 
                 let mut stream = stream_clone.write().await;
                 if let Err(e) = stream.write_all(&response.to_bytes()).await {

@@ -1,0 +1,9 @@
+{
+    "rust-analyzer.check.features": ["e2e-tests"],
+    "rust-analyzer.cargo.features": [
+        "e2e-tests"
+    ],
+    "lldb.dereferencePointers": true,
+    "lldb.consoleMode": "commands",
+    "lldb.displayFormat": "auto"
+}

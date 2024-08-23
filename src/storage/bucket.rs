@@ -19,7 +19,11 @@ impl Bucket {
         }
     }
 
-    pub fn add_document(&self, collection_name: &str, document: Document) -> Result<(), StorageError> {
+    pub fn add_document(
+        &self,
+        collection_name: &str,
+        document: Document,
+    ) -> Result<(), StorageError> {
         self.collections
             .entry(collection_name.to_string())
             .or_insert_with(|| Collection::new(collection_name.to_string()))
@@ -34,21 +38,20 @@ impl Bucket {
     }
 
     pub fn delete_document(&self, collection_name: &str, id: &str) -> Result<(), StorageError> {
-        let result = self.collections
+        let collection = self
+            .collections
             .get(collection_name)
-            .ok_or(StorageError::CollectionNotFound)?
-            .delete_document(id);
+            .ok_or(StorageError::CollectionNotFound)?;
 
-        // Clean up empty collections
-        if result.is_ok() {
-            if let Some(collection) = self.collections.get(collection_name) {
-                if collection.is_empty() {
-                    self.collections.remove(collection_name);
-                }
+        collection.delete_document(id).and_then(|_| {
+            if collection.is_empty() {
+                drop(collection);
+                self.collections.remove(collection_name);
             }
-        }
+            Ok(())
+        })?;
 
-        result
+        Ok(())
     }
 
     pub fn is_empty(&self) -> bool {

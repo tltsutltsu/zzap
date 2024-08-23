@@ -1,3 +1,4 @@
+#![allow(unexpected_cfgs)] // to avoid warnings about missing tarpaulin cfg attributes
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
@@ -6,6 +7,7 @@ use std::process::{Child, Command};
 use std::time::Duration;
 
 const SERVER_PORT: u16 = 13413;
+const RELEASE_MODE: bool = true;
 
 struct TestNode {
     process: Child,
@@ -15,8 +17,14 @@ impl TestNode {
     const START_TIMEOUT: Duration = Duration::from_secs(1);
 
     fn new() -> Self {
+        let mut args = vec!["build"];
+
+        if RELEASE_MODE {
+            args.push("--release")
+        }
+
         let build_status = std::process::Command::new("cargo")
-            .args(["build", "--release"])
+            .args(args)
             .spawn()
             .expect("Failed to build zzap")
             .wait()
@@ -27,16 +35,18 @@ impl TestNode {
         let process = Command::new("./target/release/zzap")
             .spawn()
             .expect("Failed to start database");
-        
+
         std::thread::sleep(Self::START_TIMEOUT);
-        
+
         Self { process }
     }
 }
 
 impl Drop for TestNode {
     fn drop(&mut self) {
-        self.process.kill().expect("Failed to kill database process");
+        self.process
+            .kill()
+            .expect("Failed to kill database process");
     }
 }
 
@@ -125,16 +135,28 @@ async fn e2e_simple() -> Result<(), Box<dyn Error>> {
 async fn e2e_index_cleans_properly() -> Result<(), Box<dyn Error>> {
     // Connect to the server
     let _node = TestNode::new();
-    
+
     let mut stream = TcpStream::connect(format!("127.0.0.1:{}", SERVER_PORT))?;
 
     println!("Connected to server");
 
-    command!(&mut stream, "SET default articles 0 test_article", "+OK\n");
-    command!(&mut stream, "SET default articles 0 other_word", "+OK\n");
+    command!(&mut stream, "SET default articles 42 test_article", "+OK\n");
+    command!(&mut stream, "SET default articles 42 other_word", "+OK\n");
 
     command!(&mut stream, "SEARCH default articles test_article", "0\n");
-    command!(&mut stream, "SEARCH default articles other_word", "1\n0\n");
+    command!(&mut stream, "SEARCH default articles other_word", "1\n42\n");
+
+    command!(&mut stream, "REMOVE default articles 42", "+OK\n");
+
+    command!(&mut stream, "SEARCH default articles test_article", "0\n");
+    command!(&mut stream, "SEARCH default articles other_word", "0\n");
+
+    command!(&mut stream, "SET default articles 5 first second", "+OK\n");
+    command!(&mut stream, "SET default articles 6 first", "+OK\n");
+
+    command_predicate!(&mut stream, "SEARCH default articles first", |resp| {
+        resp == "2\n5\n6\n" || resp == "2\n6\n5\n"
+    });
 
     Ok(())
 }
@@ -169,28 +191,23 @@ async fn e2e_lot_of_data() -> Result<(), Box<dyn Error>> {
             let search_phrases = record.iter().skip(1).map(|s| s.to_string()).collect();
             (article_name, search_phrases)
         })
+        .take(15_000) // roughly quater of the dataset, TODO: make this configurable
         .collect();
     println!("all_records: {:?}", all_records.len());
     for (id, (article_name, _search_phrases)) in all_records.iter().enumerate() {
-        command!(
-            &mut stream,
-            format!(
-                "SET default articles {} {}:{}",
-                id,
-                article_name.len(),
-                article_name
-            )
-            .as_str(),
-            "+OK\n"
+        let cmd = format!(
+            "SET default articles {} {}:{}",
+            id,
+            article_name.len(),
+            article_name
         );
+        command!(&mut stream, cmd.as_str(), "+OK\n");
     }
 
     // now try to search for each phrase
     let mut found = 0;
     let mut total = 0;
-    for (id, (_article_name, search_phrases)) in
-        all_records.iter().enumerate().take(all_records.len() / 100)
-    {
+    for (id, (_article_name, search_phrases)) in all_records.iter().enumerate() {
         for search_phrase in search_phrases {
             total += 1;
 
@@ -208,11 +225,11 @@ async fn e2e_lot_of_data() -> Result<(), Box<dyn Error>> {
         }
 
         if id % 1000 == 0 {
-            println!("processed {} records ({}%)", id, id * 100 / total);
+            println!("processed {} records", id);
         }
     }
 
-    println!("found {} of {} items", found, total);
+    println!("found {} documents of {} search phrases", found, total);
 
     Ok(())
 }

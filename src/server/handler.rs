@@ -1,10 +1,9 @@
 use crate::encryption::{Encryption, EncryptionError, MockEncryptor};
 use crate::protocol::{request::Request, response::Response};
-use crate::search::SearchEngine;
+use crate::search::{SearchEngine, StdSearchEngine};
 use crate::storage::{Document, Storage, StorageError, StorageOperations};
 use std::fmt;
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 pub(crate) enum HandleError {
     Encryption(EncryptionError),
@@ -24,7 +23,7 @@ pub async fn handle_request(
     request: Request,
     storage: &Arc<RwLock<Storage>>,
     encryption: &MockEncryptor,
-    search_engine: &Arc<RwLock<SearchEngine>>,
+    search_engine: &Arc<RwLock<StdSearchEngine>>,
 ) -> Result<Response, HandleError> {
     match request {
         Request::Set {
@@ -41,15 +40,17 @@ pub async fn handle_request(
                 None => content,
             };
             let document = Document::new(&id, &content);
-            let storage = storage.read().await;
-            let search_engine = search_engine.read().await;
+            let storage = storage
+                .read()
+                .map_err(|_| HandleError::Storage(StorageError::PoisonError))?;
+            let search_engine = search_engine
+                .read()
+                .map_err(|_| HandleError::Storage(StorageError::PoisonError))?;
+            search_engine
+                .index(&storage, &bucket, &collection, &id, &content)
+                .map_err(HandleError::Storage)?;
             storage
                 .add_document(&bucket, &collection, document)
-                .await
-                .map_err(HandleError::Storage)?;
-            search_engine
-                .index(&bucket, &collection, &id, &content)
-                .await
                 .map_err(HandleError::Storage)?;
             Ok(Response::Success)
         }
@@ -59,10 +60,11 @@ pub async fn handle_request(
             collection,
             query,
         } => {
-            let search_engine = search_engine.read().await;
+            let search_engine = search_engine
+                .read()
+                .map_err(|_| HandleError::Storage(StorageError::PoisonError))?;
             let results = search_engine
                 .search(&bucket, &collection, &query)
-                .await
                 .map_err(HandleError::Storage)?;
             Ok(Response::Array(results))
         }
@@ -73,10 +75,11 @@ pub async fn handle_request(
             id,
             key,
         } => {
-            let storage = storage.read().await;
+            let storage = storage
+                .read()
+                .map_err(|_| HandleError::Storage(StorageError::PoisonError))?;
             let encrypted_document = storage
                 .get_document(&bucket, &collection, &id)
-                .await
                 .map_err(HandleError::Storage)?;
             Ok(Response::BulkString(match key {
                 Some(key) => encryption
@@ -91,15 +94,17 @@ pub async fn handle_request(
             collection,
             id,
         } => {
-            let storage = storage.read().await;
-            let search_engine = search_engine.read().await;
+            let storage = storage
+                .read()
+                .map_err(|_| HandleError::Storage(StorageError::PoisonError))?;
+            let search_engine = search_engine
+                .read()
+                .map_err(|_| HandleError::Storage(StorageError::PoisonError))?;
+            search_engine
+                .remove_from_index(&storage, &bucket, &collection, &id)
+                .map_err(HandleError::Storage)?;
             storage
                 .delete_document(&bucket, &collection, &id)
-                .await
-                .map_err(HandleError::Storage)?;
-            search_engine
-                .remove_from_index(&bucket, &collection, &id)
-                .await
                 .map_err(HandleError::Storage)?;
             Ok(Response::Success)
         }

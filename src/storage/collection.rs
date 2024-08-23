@@ -7,7 +7,7 @@ use serde::Serialize;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Collection {
     name: String,
-    pub documents: DashMap<String, Document>,
+    pub documents: DashMap<String, Document>, // TODO: name is stored twice: in key and in value struct. remove one of them, this is a waste of space
 }
 
 impl Collection {

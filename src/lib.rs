@@ -1,25 +1,28 @@
 #![warn(clippy::all)]
 #![feature(try_trait_v2)]
+#![feature(option_get_or_insert_default)]
+#![feature(try_find)]
+#![allow(warnings)]
+use crate::{encryption::Encryption, search::SearchEngine, storage::StorageOperations};
 use std::net::SocketAddr;
 
-use crate::{encryption::Encryption, storage::StorageOperations};
-
-mod error;
-mod server;
-mod protocol;
-mod storage;
 mod encryption;
-mod search;
+mod error;
+mod lang;
+mod protocol;
+pub mod search;
+mod server;
+pub mod storage;
 
 pub async fn start() -> Result<(), Box<dyn std::error::Error>> {
     let storage = storage::Storage::new("storage.db");
     let encryption = encryption::MockEncryptor::new();
-    let search_engine = search::SearchEngine::new();
+    let search_engine = search::StdSearchEngine::new();
 
-    storage.initialize().await?;
-    search_engine.initialize(&storage).await?;
+    storage.initialize()?;
+    search_engine.initialize(&storage)?;
 
-    let addr = SocketAddr::from(([0,0,0,0], 13413));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 13413));
     let server = server::ZzapServer::new(addr, storage, encryption, search_engine);
 
     println!("zzap server starting on {}", addr);
