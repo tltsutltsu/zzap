@@ -15,7 +15,7 @@ jobs:
           toolchain: nightly
       
       - name: Install nextest
-        run: cargo install nextest
+        run: cargo install cargo-nextest
 
       - name: Spawn server in background
         run: |

@@ -161,6 +161,7 @@ async fn e2e_index_cleans_properly() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+// This test is slow, but mostly bc it uses 1 client to send all the data
 #[tokio::test]
 #[cfg_attr(not(feature = "e2e-tests"), ignore)]
 #[cfg_attr(tarpaulin, ignore)]
