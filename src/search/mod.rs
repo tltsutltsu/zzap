@@ -8,25 +8,18 @@ pub use {
     std::StdSearchEngine,
 };
 
-use crate::storage::StorageOperations;
-use crate::{
-    lang,
-    storage::{Storage, StorageError},
-};
+use crate::storage::{StorageError, StorageOperations, StorageOperationsInternal};
 
 pub trait SearchEngine {
-    fn initialize(&self, storage: &Storage) -> Result<(), StorageError> {
-        let store = storage
-            .store
-            .read()
-            .map_err(|_| StorageError::PoisonError)?;
+    fn initialize(&self, storage: &dyn StorageOperationsInternal) -> Result<(), StorageError> {
+        let store = storage.store()?;
         for bucket_ref in store.iter() {
             let bucket_name = bucket_ref.key();
             let bucket = bucket_ref.value();
-            for collection_ref in bucket.collections.iter() {
+            for collection_ref in bucket.iter() {
                 let collection_name = collection_ref.key();
                 let collection = collection_ref.value();
-                for document_ref in collection.documents.iter() {
+                for document_ref in collection.iter() {
                     let document_id = document_ref.key();
                     let document = document_ref.value();
                     self.index(
@@ -34,7 +27,7 @@ pub trait SearchEngine {
                         bucket_name,
                         collection_name,
                         document_id,
-                        &document.content,
+                        &document,
                     )?;
                 }
             }
@@ -44,7 +37,7 @@ pub trait SearchEngine {
 
     fn index(
         &self,
-        storage: &Storage,
+        storage: &dyn StorageOperations,
         bucket_name: &str,
         collection_name: &str,
         id: &str,
@@ -60,7 +53,7 @@ pub trait SearchEngine {
 
     fn remove_from_index(
         &self,
-        storage: &Storage,
+        storage: &dyn StorageOperations,
         bucket_name: &str,
         collection_name: &str,
         id: &str,
@@ -68,7 +61,7 @@ pub trait SearchEngine {
 
     fn batch_index(
         &self,
-        storage: &Storage,
+        storage: &dyn StorageOperations,
         bucket_name: &str,
         collection_name: &str,
         docs: Vec<(String, String)>,

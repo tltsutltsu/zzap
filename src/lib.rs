@@ -2,7 +2,7 @@
 #![feature(try_trait_v2)]
 #![feature(option_get_or_insert_default)]
 #![feature(try_find)]
-#![allow(warnings)]
+#![feature(trait_upcasting)]
 use crate::{encryption::Encryption, search::SearchEngine, storage::StorageOperations};
 use std::net::SocketAddr;
 
@@ -15,7 +15,7 @@ mod server;
 pub mod storage;
 
 pub async fn start() -> Result<(), Box<dyn std::error::Error>> {
-    let storage = storage::Storage::new("storage.db");
+    let mut storage = storage::Storage::new("storage.db");
     let encryption = encryption::MockEncryptor::new();
     let search_engine = search::StdSearchEngine::new();
 

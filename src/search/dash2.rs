@@ -24,7 +24,7 @@ impl Dash2SearchEngine {
 impl SearchEngine for Dash2SearchEngine {
     fn index(
         &self,
-        storage: &crate::storage::Storage,
+        _storage: &dyn StorageOperations,
         bucket_name: &str,
         collection_name: &str,
         id: &str,
@@ -65,7 +65,7 @@ impl SearchEngine for Dash2SearchEngine {
 
     fn remove_from_index(
         &self,
-        storage: &crate::storage::Storage,
+        storage: &dyn StorageOperations,
         bucket_name: &str,
         collection_name: &str,
         id: &str,

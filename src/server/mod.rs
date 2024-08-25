@@ -3,7 +3,6 @@ pub mod handler;
 
 use crate::encryption::MockEncryptor;
 use crate::search::StdSearchEngine;
-use crate::search::SearchEngine;
 use crate::storage::Storage;
 use std::net::SocketAddr;
 use std::sync::Arc;

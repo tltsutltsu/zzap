@@ -4,7 +4,7 @@ use crate::encryption::MockEncryptor;
 use crate::protocol::message::Message;
 use crate::protocol::request::Request;
 use crate::protocol::response::Response;
-use crate::search::{SearchEngine, StdSearchEngine};
+use crate::search::StdSearchEngine;
 use crate::storage::Storage;
 use std::sync::RwLock as SyncRwLock;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};

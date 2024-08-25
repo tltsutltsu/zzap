@@ -3,6 +3,7 @@ use crate::protocol::{request::Request, response::Response};
 use crate::search::{SearchEngine, StdSearchEngine};
 use crate::storage::{Document, Storage, StorageError, StorageOperations};
 use std::fmt;
+use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 
 pub(crate) enum HandleError {
@@ -47,7 +48,7 @@ pub async fn handle_request(
                 .read()
                 .map_err(|_| HandleError::Storage(StorageError::PoisonError))?;
             search_engine
-                .index(&storage, &bucket, &collection, &id, &content)
+                .index(storage.deref(), &bucket, &collection, &id, &content)
                 .map_err(HandleError::Storage)?;
             storage
                 .add_document(&bucket, &collection, document)
@@ -101,7 +102,7 @@ pub async fn handle_request(
                 .read()
                 .map_err(|_| HandleError::Storage(StorageError::PoisonError))?;
             search_engine
-                .remove_from_index(&storage, &bucket, &collection, &id)
+                .remove_from_index(storage.deref(), &bucket, &collection, &id)
                 .map_err(HandleError::Storage)?;
             storage
                 .delete_document(&bucket, &collection, &id)

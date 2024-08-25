@@ -26,7 +26,7 @@ impl BTreeSearchEngine {
 impl SearchEngine for BTreeSearchEngine {
     fn index(
         &self,
-        storage: &crate::storage::Storage,
+        _storage: &dyn StorageOperations,
         bucket_name: &str,
         collection_name: &str,
         id: &str,
@@ -65,10 +65,10 @@ impl SearchEngine for BTreeSearchEngine {
 
     fn remove_from_index(
         &self,
-        storage: &crate::storage::Storage,
-        bucket_name: &str,
-        collection_name: &str,
-        id: &str,
+        _storage: &dyn StorageOperations,
+        _bucket_name: &str,
+        _collection_name: &str,
+        _id: &str,
     ) -> Result<(), crate::storage::StorageError> {
         // let content = storage.get_document(bucket_name, collection_name, id)?;
         // let tokens = lang::tokenize(&content.content);

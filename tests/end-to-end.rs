@@ -122,7 +122,7 @@ async fn e2e_simple() -> Result<(), Box<dyn Error>> {
     // Search for the key
     command!(
         &mut stream,
-        "SEARCH default test_collection test",
+        "SEARCH default test_collection test123",
         "1\ntest_id\n"
     );
 

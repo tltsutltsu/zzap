@@ -1,17 +1,13 @@
-mod bucket;
-mod collection;
 mod error;
+pub mod mock;
 
-use bucket::Bucket;
-use collection::Collection;
 pub use error::*;
 
-use async_trait::async_trait;
-use dashmap::DashMap;
+use dashmap::{try_result::TryResult, DashMap};
 use serde::{Deserialize, Serialize};
 use std::{
     path::{Path, PathBuf},
-    sync::{Arc, RwLock},
+    sync::Arc,
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -29,10 +25,15 @@ impl Document {
     }
 }
 
-type BucketStore = DashMap<String, Bucket>;
+// Bucket
+// |
+// Collection
+// |
+// Document, where the value is the content and the key is the id
+type StorageInner = DashMap<String, DashMap<String, DashMap<String, String>>>;
 
 pub struct Storage {
-    pub store: Arc<RwLock<BucketStore>>,
+    pub store: Arc<StorageInner>,
     persistence_path: PathBuf,
 }
 
@@ -52,14 +53,32 @@ pub trait StorageOperations {
     fn delete_document(&self, bucket: &str, collection: &str, id: &str)
         -> Result<(), StorageError>;
     fn persist(&self) -> Result<(), StorageError>;
-    fn load(&self) -> Result<(), StorageError>;
-    fn initialize(&self) -> Result<(), StorageError>;
+    fn load(&mut self) -> Result<(), StorageError>;
+    fn initialize(&mut self) -> Result<(), StorageError>;
+}
+
+pub trait StorageOperationsInternal: StorageOperations {
+    fn store(&self) -> Result<Arc<StorageInner>, StorageError>;
+}
+
+trait TryResultUnwrapStorageError<T> {
+    fn unwrap_storage_error(self, entity_type: EntityType) -> Result<T, StorageError>;
+}
+
+impl<T> TryResultUnwrapStorageError<T> for TryResult<T> {
+    fn unwrap_storage_error(self, entity_type: EntityType) -> Result<T, StorageError> {
+        match self {
+            TryResult::Present(item) => Ok(item),
+            TryResult::Absent => Err(StorageError::NotFound(entity_type)),
+            TryResult::Locked => Err(StorageError::Locked(entity_type)),
+        }
+    }
 }
 
 impl Storage {
     pub fn new<P: AsRef<Path>>(persistence_path: P) -> Self {
         Storage {
-            store: Arc::new(RwLock::new(DashMap::new())),
+            store: Arc::new(DashMap::new()),
             persistence_path: persistence_path.as_ref().to_path_buf(),
         }
     }
@@ -72,13 +91,17 @@ impl StorageOperations for Storage {
         collection: &str,
         document: Document,
     ) -> Result<(), StorageError> {
-        let store = self.store.read().map_err(|_| StorageError::PoisonError)?;
-        let res = store
-            .entry(bucket.to_string())
-            .or_insert_with(|| Bucket::new(bucket.to_string()))
-            .add_document(collection, document);
+        let _res = self
+            .store
+            .try_entry(bucket.to_string())
+            .ok_or(StorageError::Locked(EntityType::Bucket))?
+            .or_insert_with(|| DashMap::new())
+            .try_entry(collection.to_string())
+            .ok_or(StorageError::Locked(EntityType::Collection))?
+            .or_insert_with(|| DashMap::new())
+            .insert(document.id, document.content);
 
-        res
+        Ok(())
     }
 
     fn get_document(
@@ -87,13 +110,18 @@ impl StorageOperations for Storage {
         collection: &str,
         id: &str,
     ) -> Result<Document, StorageError> {
-        let store = self.store.read().map_err(|_| StorageError::PoisonError)?;
-        let res = store
-            .get(bucket)
-            .ok_or(StorageError::BucketNotFound)?
-            .get_document(collection, id);
+        let bucket = self
+            .store
+            .try_get(bucket)
+            .unwrap_storage_error(EntityType::Bucket)?;
+        let collection = bucket
+            .try_get(collection)
+            .unwrap_storage_error(EntityType::Collection)?;
+        let res = collection
+            .try_get(id)
+            .unwrap_storage_error(EntityType::Item)?;
 
-        res
+        Ok(Document::new(id, &res))
     }
 
     fn delete_document(
@@ -102,33 +130,51 @@ impl StorageOperations for Storage {
         collection_name: &str,
         id: &str,
     ) -> Result<(), StorageError> {
-        let store = self.store.write().map_err(|_| StorageError::PoisonError)?;
-        let bucket = store.get(bucket_name).ok_or(StorageError::BucketNotFound)?;
+        let bucket = self
+            .store
+            .try_get(bucket_name)
+            .unwrap_storage_error(EntityType::Bucket)?;
+        let collection = bucket
+            .try_get(collection_name)
+            .unwrap_storage_error(EntityType::Collection)?;
+        println!("collection before delete: {:?}", collection);
+        collection.remove(id);
 
-        bucket.delete_document(&collection_name, id).and_then(|_| {
+        println!("collection after delete: {:?}", collection);
+        if collection.is_empty() {
+            println!("collection is empty, removing it");
+            drop(collection);
+            bucket.remove(collection_name);
+
+            println!("bucket after delete: {:?}", bucket);
             if bucket.is_empty() {
+                println!("bucket is empty, removing it");
                 drop(bucket);
-                store.remove(bucket_name);
+                self.store.remove(bucket_name);
             }
-            Ok(())
-        })?;
+        }
+
+        println!("store after delete: {:?}", self.store);
 
         Ok(())
     }
 
     fn persist(&self) -> Result<(), StorageError> {
-        let store = self.store.read().map_err(|_| StorageError::PoisonError)?;
+        let tmp_path = self.persistence_path.with_extension("zzap_tmp"); // `zzap_tmp` is used to avoid situation where user would name database file with `tmp` extension
+
         let mut s = flexbuffers::FlexbufferSerializer::new();
-        store
+        self.store
             .serialize(&mut s)
             .map_err(|e| StorageError::SerializationError(e.to_string()))?;
         let serialized = s.take_buffer();
-        std::fs::write(&self.persistence_path, serialized)
+        std::fs::write(&tmp_path, serialized)
+            .map_err(|e| StorageError::SerializationError(e.to_string()))?;
+        std::fs::rename(&tmp_path, &self.persistence_path)
             .map_err(|e| StorageError::SerializationError(e.to_string()))?;
         Ok(())
     }
 
-    fn load(&self) -> Result<(), StorageError> {
+    fn load(&mut self) -> Result<(), StorageError> {
         if !self.persistence_path.exists() {
             return Ok(());
         }
@@ -137,14 +183,93 @@ impl StorageOperations for Storage {
             .map_err(|e| StorageError::SerializationError(e.to_string()))?;
         let s = flexbuffers::Reader::get_root(&*serialized)
             .map_err(|e| StorageError::SerializationError(e.to_string()))?;
-        let store: DashMap<String, Bucket> = Deserialize::deserialize(s)
+        let store: StorageInner = Deserialize::deserialize(s)
             .map_err(|e| StorageError::SerializationError(e.to_string()))?;
-        *self.store.write().map_err(|_| StorageError::PoisonError)? = store;
+        self.store = Arc::new(store);
         Ok(())
     }
 
-    fn initialize(&self) -> Result<(), StorageError> {
+    fn initialize(&mut self) -> Result<(), StorageError> {
         self.load()?;
+        Ok(())
+    }
+}
+
+impl StorageOperationsInternal for Storage {
+    fn store(&self) -> Result<Arc<StorageInner>, StorageError> {
+        Ok(self.store.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_storage_persistence_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
+        const PERSISTENCE_PATH: &str = "storage.db";
+        let documents = vec![
+            ("bucket", "collection", Document::new("id", "content")),
+            (
+                "other bucket",
+                "other collection?",
+                Document::new("id2", "content2"),
+            ),
+            (
+                r#"bucket name with ascii non␍-prin␀␊tab␄le characters␄ and <html></html> and {"json": "object"} and "quoted string" and 'single quoted string' and `backticks`"#,
+                r#"collection name with ascii non␍-prin␀␊tab␄le characters␄ and <html></html> and {"json": "object"} and "quoted string" and 'single quoted string' and `backticks`"#,
+                Document::new(
+                    r#"id with ascii non␍-prin␀␊tab␄le characters␄ and <html></html> and {"json": "object"} and "quoted string" and 'single quoted string' and `backticks`"#,
+                    r#"content with ascii non␍-prin␀␊tab␄le characters␄ and <html></html> and {"json": "object"} and "quoted string" and 'single quoted string' and `backticks`"#,
+                ),
+            ),
+        ];
+        let mut storage = Storage::new(PERSISTENCE_PATH);
+        storage.initialize()?;
+
+        for (bucket, collection, document) in documents.clone() {
+            storage.add_document(bucket, collection, document)?;
+        }
+
+        storage.persist()?;
+
+        let mut storage = Storage::new(PERSISTENCE_PATH);
+        storage.initialize()?;
+
+        println!("storage: {:?}", storage.store);
+        for (bucket, collection, document) in documents.clone() {
+            println!("getting doc from storage");
+            let doc_from_storage = storage.get_document(bucket, collection, &document.id)?;
+            assert_eq!(doc_from_storage.content, document.content);
+        }
+
+        for (bucket, collection, document) in documents.clone() {
+            println!("deleting doc from storage");
+            storage.delete_document(bucket, collection, &document.id)?;
+        }
+
+        storage.persist()?;
+        println!("storage after persist: {:?}", storage.store);
+        let mut storage = Storage::new(PERSISTENCE_PATH);
+        storage.initialize()?;
+
+        for (bucket, collection, document) in documents.clone() {
+            println!("getting doc from storage after delete");
+            let res = storage.get_document(bucket, collection, &document.id);
+            assert!(res.is_err());
+            assert!(res.err().unwrap().is_not_found());
+        }
+
+        assert!(storage.store.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_storage_load_without_persistence_path() -> Result<(), Box<dyn std::error::Error>> {
+        let mut storage = Storage::new("");
+        let res = storage.initialize();
+        assert!(res.is_ok());
         Ok(())
     }
 }

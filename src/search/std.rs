@@ -1,14 +1,9 @@
 use super::SearchEngine;
-use crate::storage::StorageOperations;
-use crate::{
-    lang,
-    storage::{Storage, StorageError},
-};
-use rayon::prelude::*;
+use crate::storage::{EntityType, StorageOperations};
+use crate::{lang, storage::StorageError};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex, RwLock},
-    time::Instant,
 };
 
 // IndexStore is a map of buckets, each containing a map of collections, each containing a map of tokens (as keys) and a vector of document ids (as values)
@@ -38,7 +33,7 @@ impl StdSearchEngine {
 impl SearchEngine for StdSearchEngine {
     fn index(
         &self,
-        storage: &Storage,
+        storage: &dyn StorageOperations,
         bucket_name: &str,
         collection_name: &str,
         id: &str,
@@ -47,10 +42,7 @@ impl SearchEngine for StdSearchEngine {
         let index_cleanup_result =
             self.remove_from_index(storage, bucket_name, collection_name, id);
         if let Err(e) = index_cleanup_result {
-            if e != StorageError::BucketNotFound
-                && e != StorageError::CollectionNotFound
-                && e != StorageError::DocumentNotFound
-            {
+            if !e.is_not_found() {
                 return Err(e);
             }
         }
@@ -87,10 +79,12 @@ impl SearchEngine for StdSearchEngine {
         let found_ids: Mutex<HashMap<String, usize>> = Mutex::new(HashMap::new());
 
         let index = self.index.read().map_err(|_| StorageError::PoisonError)?;
-        let bucket = index.get(bucket_name).ok_or(StorageError::BucketNotFound)?;
+        let bucket = index
+            .get(bucket_name)
+            .ok_or(StorageError::NotFound(EntityType::Bucket))?;
         let collection = bucket
             .get(collection_name)
-            .ok_or(StorageError::CollectionNotFound)?;
+            .ok_or(StorageError::NotFound(EntityType::Collection))?;
 
         let tokens = lang::tokenize(query);
 
@@ -116,7 +110,7 @@ impl SearchEngine for StdSearchEngine {
 
     fn remove_from_index(
         &self,
-        storage: &Storage,
+        storage: &dyn StorageOperations,
         bucket_name: &str,
         collection_name: &str,
         id: &str,
@@ -128,12 +122,10 @@ impl SearchEngine for StdSearchEngine {
         let document = storage.get_document(bucket_name, collection_name, id);
 
         if let Err(e) = document {
-            match e {
-                StorageError::DocumentNotFound => return Ok(()),
-                StorageError::BucketNotFound => return Ok(()),
-                StorageError::CollectionNotFound => return Ok(()),
-                _ => return Err(e),
+            if e.is_not_found() {
+                return Ok(());
             }
+            return Err(e);
         }
 
         let document = document.unwrap();
@@ -143,10 +135,10 @@ impl SearchEngine for StdSearchEngine {
         let mut bucket = self.index.write().map_err(|_| StorageError::PoisonError)?;
         let bucket = bucket
             .get_mut(bucket_name)
-            .ok_or(StorageError::BucketNotFound)?;
+            .ok_or(StorageError::NotFound(EntityType::Bucket))?;
         let collection = bucket
             .get_mut(collection_name)
-            .ok_or(StorageError::CollectionNotFound)?;
+            .ok_or(StorageError::NotFound(EntityType::Collection))?;
 
         for token in tokens {
             if let Some(ids) = collection.get_mut(&token) {
@@ -162,30 +154,153 @@ impl SearchEngine for StdSearchEngine {
     }
 }
 
-/// Generate a token blacklist from the index
-///
-/// This is used to remove tokens that are too common, such as "the", "and", "is", etc,
-/// therefore not adding much value to the search and increasing the size of the index.
-///
-/// This function iterates over the index and collects all the tokens, then filters out the most common (top 1%)
-/// and returns them as a blacklist. It does not run if there are less than 1000 tokens in the index.
-///
-/// There may be a more sophisticated approach to this in the future, but for now this is a simple solution.
-// TODO: When to run it? Need some kind of scheduler for this.
-// async fn generate_token_blacklist(engine: &SearchEngine) -> Vec<String> {
-//     unimplemented!();
-//     // let mut blacklist = HashSet::new();
-//     // for bucket in engine.index.iter() {
-//     //     for collection in bucket.iter() {
-//     //         for token in collection.iter() {
-//     //             blacklist.insert(token.key().to_string());
-//     //         }
-//     //     }
-//     // }
-//     // blacklist.into_iter().collect()
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::storage::{mock::MockStorage, Document};
+
+    #[test]
+    fn test_index_cleanups() {
+        let engine = StdSearchEngine::new();
+        let bucket_name = "test_bucket";
+        let collection_name = "test_collection";
+        let doc_id = "test_doc";
+
+        let storage = MockStorage::new();
+
+        // Initial indexing
+        engine
+            .index(
+                &storage,
+                bucket_name,
+                collection_name,
+                doc_id,
+                "initial content",
+            )
+            .unwrap();
+
+        storage
+            .add_document(
+                bucket_name,
+                collection_name,
+                Document::new(doc_id, "initial content (old)"),
+            )
+            .unwrap();
+
+        // Re-index with new content
+        engine
+            .index(
+                &storage,
+                bucket_name,
+                collection_name,
+                doc_id,
+                "new updated content",
+            )
+            .unwrap();
+
+        // Check the index state
+        let index = engine.index.read().unwrap();
+        let bucket = index.get(bucket_name).unwrap();
+        let collection = bucket.get(collection_name).unwrap();
+
+        // Verify old token are removed
+        assert!(!collection.contains_key("initial"));
+        assert!(!collection.contains_key("old"));
+
+        // Verify new tokens are added
+        assert!(collection.contains_key("new"));
+        assert!(collection.contains_key("updated"));
+        assert!(collection.contains_key("content"));
+
+        // Verify the document ID is associated with new tokens
+        assert!(collection.get("new").unwrap().contains(&doc_id.to_string()));
+        assert!(collection
+            .get("updated")
+            .unwrap()
+            .contains(&doc_id.to_string()));
+        assert!(collection
+            .get("content")
+            .unwrap()
+            .contains(&doc_id.to_string()));
+
+        // Verify no other unexpected tokens
+        assert_eq!(collection.len(), 3);
+    }
+
+    #[test]
+    fn test_index_single_document() {
+        let storage = MockStorage::new();
+        let engine = StdSearchEngine::new();
+        let bucket_name = "test_bucket";
+        let collection_name = "test_collection";
+        let doc_id = "test_doc";
+
+        engine
+            .index(
+                &storage,
+                bucket_name,
+                collection_name,
+                doc_id,
+                "test content",
+            )
+            .unwrap();
+
+        let results = engine
+            .search(bucket_name, collection_name, "content")
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0], doc_id);
+    }
+
+    #[test]
+    fn test_search_non_existent_items() {
+        let engine = StdSearchEngine::new();
+        let storage = MockStorage::new();
+        let bucket_name = "test_bucket";
+        let collection_name = "test_collection";
+        let doc_id = "test_doc";
+        let content = "content";
+
+        engine
+            .index(&storage, bucket_name, collection_name, doc_id, content)
+            .unwrap();
+
+        let result = engine.search(bucket_name, collection_name, content);
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], doc_id);
+
+        let result = engine.search(bucket_name, collection_name, "non existent");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 0);
+
+        let result = engine.search(bucket_name, "non existent collection", "content");
+        assert!(result.is_err_and(|err| err == StorageError::NotFound(EntityType::Collection)));
+
+        let result = engine.search("non existent bucket", collection_name, "content");
+        assert!(result.is_err_and(|err| err == StorageError::NotFound(EntityType::Bucket)));
+    }
+
+    #[test]
+    fn test_index_non_existent_items() {
+        let engine = StdSearchEngine::new();
+        let storage = MockStorage::new();
+        let bucket_name = "test_bucket";
+        let collection_name = "test_collection";
+        let doc_id = "test_doc";
+        let content = "content";
+
+        let result = engine.index(&storage, bucket_name, collection_name, doc_id, content);
+        assert!(result.is_ok());
+
+        let result = engine.index(
+            &storage,
+            bucket_name,
+            &(collection_name.to_string() + "non existent"),
+            doc_id,
+            content,
+        );
+        assert!(result.is_ok());
+    }
 }

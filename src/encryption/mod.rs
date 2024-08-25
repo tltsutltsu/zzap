@@ -3,9 +3,9 @@ mod message;
 
 use std::error::Error;
 use std::fmt;
-use tfhe::integer::BooleanBlock;
-use self::key::Key;
-use crate::encryption::message::Message;
+// use tfhe::integer::BooleanBlock;
+// use self::key::Key;
+// use crate::encryption::message::Message;
 
 #[derive(Debug)]
 pub enum EncryptionError {
@@ -29,7 +29,9 @@ impl fmt::Display for EncryptionError {
 impl Error for EncryptionError {}
 
 pub trait Encryption {
-    fn new() -> Self where Self: Sized;
+    fn new() -> Self
+    where
+        Self: Sized;
     fn encrypt(&self, data: &str, key: &str) -> Result<String, EncryptionError>;
     fn decrypt(&self, data: &str, key: &str) -> Result<String, EncryptionError>;
 }
@@ -84,7 +86,9 @@ impl Encryption for MockEncryptor {
 
         // Simple mock decryption: remove the key length and reverse the string
         let key_len_str = data.chars().rev().take(2).collect::<String>();
-        let key_len = key_len_str.parse::<usize>().map_err(|_| EncryptionError::DecryptionFailed)?;
+        let key_len = key_len_str
+            .parse::<usize>()
+            .map_err(|_| EncryptionError::DecryptionFailed)?;
 
         if key_len != key.len() {
             return Err(EncryptionError::DecryptionFailed);
@@ -97,7 +101,7 @@ impl Encryption for MockEncryptor {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // use super::*;
 
     // #[test]
     // fn test_mock_encryption() {
