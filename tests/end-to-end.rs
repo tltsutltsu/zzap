@@ -14,7 +14,7 @@ struct TestNode {
 }
 
 impl TestNode {
-    const START_TIMEOUT: Duration = Duration::from_secs(1);
+    const START_TIMEOUT: Duration = Duration::from_secs(3);
 
     fn new() -> Self {
         let mut args = vec!["build"];

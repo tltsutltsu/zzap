@@ -1,5 +1,7 @@
 mod connection;
 pub mod handler;
+#[cfg(test)]
+mod test;
 
 use crate::encryption::MockEncryptor;
 use crate::search::StdSearchEngine;

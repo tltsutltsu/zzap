@@ -7,12 +7,12 @@ use std::fmt;
 // use self::key::Key;
 // use crate::encryption::message::Message;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum EncryptionError {
     InvalidKey,
     WrongKeySize,
     EncryptionFailed,
-    DecryptionFailed,
+    DecryptionFailed(String),
 }
 
 impl fmt::Display for EncryptionError {
@@ -21,14 +21,16 @@ impl fmt::Display for EncryptionError {
             EncryptionError::InvalidKey => write!(f, "Invalid encryption key"),
             EncryptionError::WrongKeySize => write!(f, "Wrong key size"),
             EncryptionError::EncryptionFailed => write!(f, "Encryption failed"),
-            EncryptionError::DecryptionFailed => write!(f, "Decryption failed"),
+            EncryptionError::DecryptionFailed(message) => {
+                write!(f, "Decryption failed: {}", message)
+            }
         }
     }
 }
 
 impl Error for EncryptionError {}
 
-pub trait Encryption {
+pub trait Encryption: Sync + Send {
     fn new() -> Self
     where
         Self: Sized;
@@ -75,7 +77,11 @@ impl Encryption for MockEncryptor {
         }
 
         // Simple mock encryption: reverse the string and append the key length
-        let encrypted = format!("{}{}", data.chars().rev().collect::<String>(), key.len());
+        let encrypted = format!(
+            "{}{:<04}",
+            data.chars().rev().collect::<String>(),
+            key.len()
+        );
         Ok(encrypted)
     }
 
@@ -85,35 +91,41 @@ impl Encryption for MockEncryptor {
         }
 
         // Simple mock decryption: remove the key length and reverse the string
-        let key_len_str = data.chars().rev().take(2).collect::<String>();
-        let key_len = key_len_str
-            .parse::<usize>()
-            .map_err(|_| EncryptionError::DecryptionFailed)?;
+        let key_len_str = data.chars().rev().take(4).collect::<Vec<char>>();
+        let key_len_str = key_len_str.iter().rev().collect::<String>();
+
+        let key_len = key_len_str.parse::<usize>().map_err(|_| {
+            EncryptionError::DecryptionFailed(format!("key length mismatch, data is {}", data))
+        })?;
 
         if key_len != key.len() {
-            return Err(EncryptionError::DecryptionFailed);
+            return Err(EncryptionError::DecryptionFailed(format!(
+                "key length mismatch, given key length is {}, key len from data is {}",
+                key.len(),
+                key_len
+            )));
         }
 
-        let decrypted = data.chars().rev().skip(2).collect::<String>();
+        let decrypted = data.chars().rev().skip(4).collect::<String>();
         Ok(decrypted)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    // use super::*;
+    use super::*;
 
-    // #[test]
-    // fn test_mock_encryption() {
-    //     let encryptor = MockEncryptor::new();
-    //     let original = "Hello, World!";
-    //     let key = "secret";
+    #[test]
+    fn test_mock_encryption() {
+        let encryptor = MockEncryptor::new();
+        let original = "Hello, World!";
+        let key = "secret";
 
-    //     let encrypted = encryptor.encrypt(original, key).unwrap();
-    //     let decrypted = encryptor.decrypt(&encrypted, key).unwrap();
+        let encrypted = encryptor.encrypt(original, key).unwrap();
+        let decrypted = encryptor.decrypt(&encrypted, key).unwrap();
 
-    //     assert_eq!(original, decrypted);
-    // }
+        assert_eq!(original, decrypted);
+    }
 
     // #[test]
     // fn test_invalid_key() {

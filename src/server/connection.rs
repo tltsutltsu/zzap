@@ -74,7 +74,7 @@ impl Connection {
                 let response = match handle_request(
                     request,
                     &storage_clone,
-                    &encryption_clone,
+                    &*encryption_clone,
                     &search_engine_clone,
                 )
                 .await

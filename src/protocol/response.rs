@@ -1,6 +1,5 @@
+use crate::protocol::message::{DecodingError, Message};
 use crate::server::handler::HandleError;
-
-use super::message::{DecodingError, Message};
 
 #[derive(Debug, PartialEq)]
 pub enum Response {
@@ -19,13 +18,13 @@ impl Message for Response {
                 bytes.extend_from_slice(message.as_bytes());
                 bytes.push(b'\n');
                 bytes
-            },
+            }
             Response::BulkString(content) => {
                 let mut bytes = format!("${}\n", content.len()).into_bytes();
                 bytes.extend_from_slice(content.as_bytes());
                 bytes.push(b'\n');
                 bytes
-            },
+            }
             Response::Array(items) => {
                 let mut bytes = format!("{}\n", items.len()).into_bytes();
                 for item in items {
@@ -33,7 +32,7 @@ impl Message for Response {
                     bytes.push(b'\n');
                 }
                 bytes
-            },
+            }
         }
     }
 
@@ -46,7 +45,7 @@ impl Message for Response {
             Some(line) if line.starts_with("-ERR") => {
                 let error_message = line.trim_start_matches("-ERR ").to_string();
                 Ok(Response::Error(error_message))
-            },
+            }
             Some(line) if line.starts_with("$") => {
                 if line == "$-1" {
                     Ok(Response::BulkString(String::new())) // Represent null bulk string as empty string
@@ -54,7 +53,7 @@ impl Message for Response {
                     let content = lines.next().unwrap_or("").to_string();
                     Ok(Response::BulkString(content))
                 }
-            },
+            }
             Some(line) => {
                 if let Ok(count) = line.parse::<usize>() {
                     let items: Vec<String> = lines.take(count).map(|s| s.to_string()).collect();
@@ -62,7 +61,7 @@ impl Message for Response {
                 } else {
                     Err(DecodingError::InvalidResponseFormat)
                 }
-            },
+            }
             None => Err(DecodingError::EmptyResponse),
         }
     }
@@ -80,9 +79,8 @@ impl Response {
 
 #[cfg(test)]
 mod tests {
-    use crate::encryption::EncryptionError;
-
     use super::*;
+    use crate::{encryption::EncryptionError, storage::EntityType, storage::StorageError};
 
     #[test]
     fn test_from_decoding_error() {
@@ -93,9 +91,19 @@ mod tests {
 
     #[test]
     fn test_from_handle_error() {
-        let error = HandleError::Encryption(EncryptionError::DecryptionFailed);
+        let error = HandleError::Encryption(EncryptionError::DecryptionFailed("test".to_string()));
         let response = Response::from_handle_error(error);
-        assert_eq!(response, Response::Error("Encryption error: Decryption failed".to_string()));
+        assert_eq!(
+            response,
+            Response::Error("Encryption error: Decryption failed: test".to_string())
+        );
+
+        let error = HandleError::Storage(StorageError::NotFound(EntityType::Bucket));
+        let response = Response::from_handle_error(error);
+        assert_eq!(
+            response,
+            Response::Error("Storage error: bucket not found".to_string())
+        );
     }
 
     #[test]
@@ -126,7 +134,10 @@ mod tests {
     fn test_response_error_encode_long() {
         let too_long_message = "Too long error message".repeat(100);
         let response = Response::Error(too_long_message.clone());
-        assert_eq!(response.to_bytes(), format!("-ERR {}\n", too_long_message).as_bytes());
+        assert_eq!(
+            response.to_bytes(),
+            format!("-ERR {}\n", too_long_message).as_bytes()
+        );
     }
 
     #[test]
@@ -144,7 +155,8 @@ mod tests {
     #[test]
     fn test_response_error_decode_long() {
         let too_long_message = "Too long error message".repeat(100);
-        let response = Response::from_bytes(format!("-ERR {}\n", too_long_message).as_bytes()).unwrap();
+        let response =
+            Response::from_bytes(format!("-ERR {}\n", too_long_message).as_bytes()).unwrap();
         assert_eq!(response, Response::Error(too_long_message));
     }
 
@@ -169,7 +181,10 @@ mod tests {
     #[test]
     fn test_response_array_decode() {
         let response = Response::from_bytes(b"2\nHello\nworld\n").unwrap();
-        assert_eq!(response, Response::Array(vec!["Hello".to_string(), "world".to_string()]));
+        assert_eq!(
+            response,
+            Response::Array(vec!["Hello".to_string(), "world".to_string()])
+        );
     }
 
     #[test]

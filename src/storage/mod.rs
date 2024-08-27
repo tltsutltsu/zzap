@@ -137,24 +137,17 @@ impl StorageOperations for Storage {
         let collection = bucket
             .try_get(collection_name)
             .unwrap_storage_error(EntityType::Collection)?;
-        println!("collection before delete: {:?}", collection);
         collection.remove(id);
 
-        println!("collection after delete: {:?}", collection);
         if collection.is_empty() {
-            println!("collection is empty, removing it");
             drop(collection);
             bucket.remove(collection_name);
 
-            println!("bucket after delete: {:?}", bucket);
             if bucket.is_empty() {
-                println!("bucket is empty, removing it");
                 drop(bucket);
                 self.store.remove(bucket_name);
             }
         }
-
-        println!("store after delete: {:?}", self.store);
 
         Ok(())
     }
@@ -236,25 +229,20 @@ mod tests {
         let mut storage = Storage::new(PERSISTENCE_PATH);
         storage.initialize()?;
 
-        println!("storage: {:?}", storage.store);
         for (bucket, collection, document) in documents.clone() {
-            println!("getting doc from storage");
             let doc_from_storage = storage.get_document(bucket, collection, &document.id)?;
             assert_eq!(doc_from_storage.content, document.content);
         }
 
         for (bucket, collection, document) in documents.clone() {
-            println!("deleting doc from storage");
             storage.delete_document(bucket, collection, &document.id)?;
         }
 
         storage.persist()?;
-        println!("storage after persist: {:?}", storage.store);
         let mut storage = Storage::new(PERSISTENCE_PATH);
         storage.initialize()?;
 
         for (bucket, collection, document) in documents.clone() {
-            println!("getting doc from storage after delete");
             let res = storage.get_document(bucket, collection, &document.id);
             assert!(res.is_err());
             assert!(res.err().unwrap().is_not_found());

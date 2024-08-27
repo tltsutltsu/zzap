@@ -1,4 +1,4 @@
-use crate::encryption::{Encryption, EncryptionError, MockEncryptor};
+use crate::encryption::{Encryption, EncryptionError};
 use crate::protocol::{request::Request, response::Response};
 use crate::search::{SearchEngine, StdSearchEngine};
 use crate::storage::{Document, Storage, StorageError, StorageOperations};
@@ -6,6 +6,7 @@ use std::fmt;
 use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 
+#[derive(Debug, PartialEq)]
 pub(crate) enum HandleError {
     Encryption(EncryptionError),
     Storage(StorageError),
@@ -20,10 +21,10 @@ impl fmt::Display for HandleError {
     }
 }
 
-pub async fn handle_request(
+pub(crate) async fn handle_request(
     request: Request,
     storage: &Arc<RwLock<Storage>>,
-    encryption: &MockEncryptor,
+    encryption: &dyn Encryption,
     search_engine: &Arc<RwLock<StdSearchEngine>>,
 ) -> Result<Response, HandleError> {
     match request {

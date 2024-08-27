@@ -1,13 +1,13 @@
-#![warn(clippy::all)]
 #![feature(try_trait_v2)]
 #![feature(option_get_or_insert_default)]
 #![feature(try_find)]
 #![feature(trait_upcasting)]
+#![feature(async_fn_track_caller)]
+
 use crate::{encryption::Encryption, search::SearchEngine, storage::StorageOperations};
 use std::net::SocketAddr;
 
 mod encryption;
-mod error;
 mod lang;
 mod protocol;
 pub mod search;

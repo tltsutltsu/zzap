@@ -1,8 +1,5 @@
-#![cfg(test)]
-
-use crate::storage::EntityType;
-
 use super::{Document, StorageError, StorageOperations};
+use crate::storage::EntityType;
 use std::collections::HashMap;
 use std::sync::RwLock;
 
@@ -26,7 +23,6 @@ impl StorageOperations for MockStorage {
             .get(id)
             .cloned()
             .ok_or(StorageError::NotFound(EntityType::Item));
-        println!("get_document: {:?}", res);
         res
     }
     fn add_document(
@@ -35,7 +31,6 @@ impl StorageOperations for MockStorage {
         _collection: &str,
         document: Document,
     ) -> Result<(), StorageError> {
-        println!("add_document: {:?}", document);
         self.0
             .write()
             .map_err(|_| StorageError::PoisonError)?

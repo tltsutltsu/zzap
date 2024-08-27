@@ -28,6 +28,10 @@ impl StdSearchEngine {
             index: Arc::new(RwLock::new(HashMap::new())),
         }
     }
+
+    pub fn get_index(&self) -> Arc<IndexStore> {
+        self.index.clone()
+    }
 }
 
 impl SearchEngine for StdSearchEngine {
