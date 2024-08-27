@@ -11,7 +11,7 @@ e2e-tests:
 
 specific-unit-test:
 	@read -p "Enter the unit test name: " test_name; \
-	cargo nextest run --release --features=e2e-tests --no-fail-fast --no-capture -- $$test_name
+	cargo nextest run --features=e2e-tests --no-fail-fast --no-capture -- $$test_name
 
 benchmarks:
 	cargo bench

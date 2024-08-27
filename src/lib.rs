@@ -3,6 +3,7 @@
 #![feature(try_find)]
 #![feature(trait_upcasting)]
 #![feature(async_fn_track_caller)]
+#![feature(let_chains)]
 
 use crate::{encryption::Encryption, search::SearchEngine, storage::StorageOperations};
 use std::net::SocketAddr;

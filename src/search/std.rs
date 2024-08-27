@@ -179,7 +179,7 @@ mod tests {
                 bucket_name,
                 collection_name,
                 doc_id,
-                "initial content",
+                "initial content (old)",
             )
             .unwrap();
 
@@ -199,6 +199,14 @@ mod tests {
                 collection_name,
                 doc_id,
                 "new updated content",
+            )
+            .unwrap();
+
+        storage
+            .add_document(
+                bucket_name,
+                collection_name,
+                Document::new(doc_id, "new updated content"),
             )
             .unwrap();
 
