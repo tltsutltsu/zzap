@@ -1,5 +1,5 @@
 use crate::encryption::{Encryption, EncryptionError};
-use crate::protocol::{request::Request, response::Response};
+use crate::protocol::{Request, Response};
 use crate::search::{SearchEngine, StdSearchEngine};
 use crate::storage::{Document, Storage, StorageError, StorageOperations};
 use std::fmt;

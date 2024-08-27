@@ -191,11 +191,7 @@ impl Message for Request {
                     .to_string();
                 let key = parts.collect::<Vec<&str>>().join(" ").trim().to_string();
 
-                let key = if key.is_empty() {
-                    None
-                } else {
-                    Some(key)
-                };
+                let key = if key.is_empty() { None } else { Some(key) };
 
                 Ok(Request::Get {
                     bucket,
@@ -1134,6 +1130,9 @@ mod tests {
     fn test_invalid_command() {
         let result = Request::from_bytes(b"INVALID 123");
         assert!(result.is_err(), "Expected error for invalid command");
-        assert_eq!(result.unwrap_err(), DecodingError::InvalidRequest("Invalid command".to_string()));
+        assert_eq!(
+            result.unwrap_err(),
+            DecodingError::InvalidRequest("Invalid command".to_string())
+        );
     }
 }

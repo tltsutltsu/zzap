@@ -55,6 +55,7 @@ fn send_command(stream: &mut TcpStream, command: &str) -> Result<(), Box<dyn Err
     Ok(())
 }
 
+// TODO: change to common function to read response from stream
 fn read_response(stream: &mut TcpStream) -> Result<String, Box<dyn Error>> {
     // read until newline
     let mut buffer = Vec::new();

@@ -1,7 +1,5 @@
 use crate::encryption::{Encryption, MockEncryptor};
-use crate::protocol::message::Message;
-use crate::protocol::request::Request;
-use crate::protocol::response::Response;
+use crate::protocol::{Message, Request, Response};
 use crate::search::StdSearchEngine;
 use crate::server::handler::{handle_request, HandleError};
 use crate::storage::{EntityType, Storage, StorageError};
