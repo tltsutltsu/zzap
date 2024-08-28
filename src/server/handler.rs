@@ -7,7 +7,7 @@ use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum HandleError {
+pub enum HandleError {
     Encryption(EncryptionError),
     Storage(StorageError),
 }
@@ -21,7 +21,7 @@ impl fmt::Display for HandleError {
     }
 }
 
-pub(crate) async fn handle_request(
+pub async fn handle_request(
     request: Request,
     storage: &Arc<RwLock<Storage>>,
     encryption: &dyn Encryption,

@@ -1,9 +1,11 @@
 {
     "rust-analyzer.check.features": [
-        "e2e-tests"
+        "e2e-tests",
+        "arbitrary"
     ],
     "rust-analyzer.cargo.features": [
-        "e2e-tests"
+        "e2e-tests",
+        "arbitrary"
     ],
     "lldb.dereferencePointers": true,
     "lldb.consoleMode": "commands",

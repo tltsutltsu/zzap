@@ -8,11 +8,11 @@
 use crate::{encryption::Encryption, search::SearchEngine, storage::StorageOperations};
 use std::net::SocketAddr;
 
-mod encryption;
+pub mod encryption;
 mod lang;
-mod protocol;
+pub mod protocol;
 pub mod search;
-mod server;
+pub mod server;
 pub mod storage;
 
 pub async fn start() -> Result<(), Box<dyn std::error::Error>> {

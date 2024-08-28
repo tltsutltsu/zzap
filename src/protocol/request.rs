@@ -1,5 +1,6 @@
 use super::message::{DecodingError, Message};
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq)]
 pub enum Request {
     Ping,

@@ -16,3 +16,4 @@
 - [ ] add documentation (will doc comments suffice?)
 - [ ] if tcp socket disconnects (even mid command execution), the server should shutdown that thread and continue
 - [ ] in server mod, there are double thread spawning, can we avoid that?
+- [ ] shrink tokio features

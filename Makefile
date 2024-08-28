@@ -22,6 +22,12 @@ clippy:
 pre-commit: clippy unit-tests e2e-tests coverage benchmarks
 	@echo "All pre-commit checks completed."
 
+fuzz-node:
+	cargo fuzz run --release node -- -rss_limit_mb=8192 -max_len=450000 -len_control=0
+
+fuzz-protocol:
+	cargo fuzz run --release protocol -- -rss_limit_mb=8192 -max_len=450000 -len_control=0
+
 help:
 	@echo "Available targets:"
 	@echo "  help                - Display this help message"

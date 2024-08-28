@@ -1,0 +1,49 @@
+[package]
+name = "zzap-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = { version = "0.4" }
+arbitrary = "1.3.2"                               # TODO: remove after libfuzzer-sys crate fixes resolution of `derive` feature
+derive_arbitrary = "1.3.2"                        # TODO: remove after libfuzzer-sys crate fixes resolution of `derive` feature
+tokio = { version = "1.36.0", features = ["rt"] }
+
+[dependencies.zzap]
+path = ".."
+features = ["arbitrary"]
+
+[[bin]]
+name = "node"
+path = "fuzz_targets/node.rs"
+test = false
+doc = false
+bench = false
+
+
+[[bin]]
+name = "protocol"
+path = "fuzz_targets/protocol.rs"
+test = false
+doc = false
+bench = false
+
+
+[[bin]]
+name = "search"
+path = "fuzz_targets/search.rs"
+test = false
+doc = false
+bench = false
+
+
+[[bin]]
+name = "storage"
+path = "fuzz_targets/storage.rs"
+test = false
+doc = false
+bench = false
