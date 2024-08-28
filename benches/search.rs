@@ -25,7 +25,7 @@ fn engine_setup(engine_type: &str) -> EngineSetup {
         "std" => Box::new(StdSearchEngine::new()),
         _ => panic!("Unknown engine type"),
     };
-    let storage = Storage::new("storage.db");
+    let storage = Storage::new("bench.db");
 
     let file = File::open("assets/tests/search_synthetic_dataset.csv").unwrap();
     let mut reader = ReaderBuilder::new()

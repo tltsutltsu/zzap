@@ -23,10 +23,10 @@ pre-commit: clippy unit-tests e2e-tests coverage benchmarks
 	@echo "All pre-commit checks completed."
 
 fuzz-node:
-	cargo fuzz run --release node -- -rss_limit_mb=8192 -max_len=450000 -len_control=0
+	cargo fuzz run --release node -- -rss_limit_mb=8192 -max_len=450000 -len_control=0 -timeout=30
 
 fuzz-protocol:
-	cargo fuzz run --release protocol -- -rss_limit_mb=8192 -max_len=450000 -len_control=0
+	cargo fuzz run --release protocol -- -rss_limit_mb=8192 -max_len=450000 -len_control=0 -timeout=30
 
 help:
 	@echo "Available targets:"
@@ -36,5 +36,7 @@ help:
 	@echo "  e2e-tests    - Run all end-to-end tests"
 	@echo "  benchmarks          - Run benchmarks"
 	@echo "  clippy              - Run Clippy linter"
+	@echo "  fuzz-node           - Run fuzz test on node"
+	@echo "  fuzz-protocol       - Run fuzz test on protocol"
 	@echo "  pre-commit          - Run all pre-commit checks"
 	@echo "  specific-unit-test  - Run a specific unit test (prompts for test name). For programmatic usage, you can use \n\t\t\t'echo \"testname\" | make specific-unit-test'"

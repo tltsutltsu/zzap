@@ -8,7 +8,6 @@
 - [ ] add logging (slog? tracing?), check for all eprintln and println and replace
 - [ ] add health checks (actix-web?)
 - [ ] add rate limiting (tokio-rate-limit?)
-- [ ] add fuzzing (cargo-fuzz?)
 - [ ] add benchmarks (criterion?), more, like 5 benchmarks and load testing of common cases so we can measure performance impact of each change
 - [ ] is there any way to compare and save benchmarks of each commit? and show on graph? master will be enough, but it would be nice to see the impact of each PR
 - [ ] add more tests!! integration, units, end-to-end, fuzzing, etc. up to 500 tests and 100% coverage
@@ -17,3 +16,4 @@
 - [ ] if tcp socket disconnects (even mid command execution), the server should shutdown that thread and continue
 - [ ] in server mod, there are double thread spawning, can we avoid that?
 - [ ] shrink tokio features
+- [x] add fuzzing (cargo-fuzz?)

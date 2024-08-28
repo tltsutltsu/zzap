@@ -134,7 +134,15 @@ impl Message for Request {
                                 "Content length exceeds input length".to_string(),
                             ));
                         }
-                        let content = &after_params[len_pos + 1..content_end];
+                        let position = len_pos + 1;
+                        if !after_params.is_char_boundary(position)
+                            || !after_params.is_char_boundary(content_end)
+                        {
+                            return Err(DecodingError::InvalidRequest(
+                                "Invalid content length".to_string(),
+                            ));
+                        }
+                        let content = &after_params[position..content_end];
                         let key = after_params[content_end..].trim();
                         let key = if key.is_empty() {
                             None
@@ -560,6 +568,23 @@ mod tests {
                     key: Some("SET b c j 5:test2".into()),
                 }),
             ),
+            ( // case from fuzzer: invalid utf8 boundary
+                #[allow(invalid_from_utf8_unchecked)]
+                unsafe {
+                    std::str::from_utf8_unchecked(&[
+                        83,
+                        69,
+                        84,
+                        32,
+                        50,
+                        12,
+                        58,
+                        12,
+                        229,
+                    ])
+                },
+             Err(DecodingError::InvalidRequest("Invalid content length".to_string())),
+            )
         ];
 
         for (input, expected) in cases {

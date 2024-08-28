@@ -200,7 +200,7 @@ mod tests {
 
     #[test]
     fn test_storage_persistence_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
-        const PERSISTENCE_PATH: &str = "storage.db";
+        const PERSISTENCE_PATH: &str = "test.db";
         let documents = vec![
             ("bucket", "collection", Document::new("id", "content")),
             (
